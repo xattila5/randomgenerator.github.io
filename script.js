@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function displayRandomText() {
     const karakterszam = parseInt(document.getElementById('karakterszam').value);
+    if (karakterszam > 100000) {
+        alert("A generálandó szöveg túl hosszú.");
+        return;
+    }
     const randomText = generateRandomText(karakterszam);
     document.getElementById('randomText').innerText = randomText;
     resizeOutputContainer();
