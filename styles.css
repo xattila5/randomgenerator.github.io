@@ -140,6 +140,7 @@ h1 {
     border-radius: inherit;
     opacity: 0;
     transition: opacity 0.3s;
+    pointer-events: none;
 }
 
 .card:hover { border-color: var(--border-hover); }
