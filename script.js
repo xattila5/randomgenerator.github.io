@@ -7,129 +7,151 @@ let words = [
     "passiógyümölcs", "guava", "licsi", "búzafű", "líra"
 ];
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Ha szükséges, itt tudsz aszinkron adatokat betölteni
-});
+document.addEventListener('DOMContentLoaded', () => {});
+
+function updateCharCount(text) {
+    const el = document.getElementById('charCount');
+    if (!text || text.trim() === '') { el.innerHTML = ''; return; }
+    el.innerHTML = `<span>${text.length}</span> karakter`;
+}
+
+function setStatus(active) {
+    document.getElementById('statusDot').classList.toggle('active', active);
+}
 
 function displayRandomText() {
     const input = document.getElementById('karakterszam').value.trim();
     const karakterszam = parseInt(input);
 
-    // BUG FIX #4: Input validáció - üres, NaN, negatív és túl nagy értékek kezelése
-    if (input === '' || isNaN(karakterszam)) {
-        alert("Kérlek, adj meg egy érvényes számot!");
-        return;
-    }
-    if (karakterszam < 0) {
-        alert("A karakterszám nem lehet negatív!");
-        return;
-    }
-    if (karakterszam === 0) {
-        document.getElementById('randomText').innerText = '';
-        resizeOutputContainer();
-        return;
+    if (input === '' || isNaN(karakterszam) || karakterszam < 1) {
+        shakeInput('karakterszam'); return;
     }
     if (karakterszam > 100000) {
-        alert("A generálandó szöveg túl hosszú.");
-        return;
+        alert("A generálandó szöveg túl hosszú."); return;
     }
 
-    const randomText = generateRandomText(karakterszam);
-    document.getElementById('randomText').innerText = randomText;
-    resizeOutputContainer();
+    const outputCard = document.getElementById('outputCard');
+    outputCard.classList.add('generating');
+
+    setTimeout(() => {
+        const randomText = generateRandomText(karakterszam);
+        outputCard.classList.remove('generating');
+        const el = document.getElementById('randomText');
+        el.textContent = randomText;
+        updateCharCount(randomText);
+        setStatus(true);
+        animateIn(el);
+    }, 300);
 }
 
 function generateRandomText(targetLength) {
-    // BUG FIX #1: Eltávolítottuk a prefix-et (pl. "100 ..."),
-    // ami beleszámított a karakterszámba és félrevezető volt.
-    // Most a generált szöveg pontosan targetLength karakter hosszú lesz.
-    let result = '';
+    // Prefix: "100 " jelzi a kért hosszt, a maradék karakterek töltik fel a szöveget
+    const prefix = `${targetLength} `;
+
+    // Ha a prefix már eléri vagy meghaladja a kért hosszt, csak azt adjuk vissza
+    if (prefix.length >= targetLength) {
+        return prefix.substring(0, targetLength);
+    }
+
+    const contentLength = targetLength - prefix.length;
+    let content = '';
     let currentLength = 0;
 
-    while (currentLength < targetLength) {
+    while (currentLength < contentLength) {
         const randomWord = words[Math.floor(Math.random() * words.length)];
         const separator = currentLength === 0 ? '' : ' ';
         const addition = separator + randomWord;
 
-        if (currentLength + addition.length <= targetLength) {
-            result += addition;
+        if (currentLength + addition.length <= contentLength) {
+            content += addition;
             currentLength += addition.length;
         } else {
-            // Ha a szó nem fér el egészben, karakterenként töltjük fel a maradékot
-            const remaining = targetLength - currentLength;
+            const remaining = contentLength - currentLength;
             if (remaining > 0) {
-                result += (currentLength === 0 ? '' : ' ').substring(0, Math.min(1, remaining));
-                currentLength = result.length;
-                if (currentLength < targetLength) {
-                    result += randomWord.substring(0, targetLength - currentLength);
-                    currentLength = result.length;
+                const sep = currentLength === 0 ? '' : ' ';
+                const available = remaining - sep.length;
+                if (available > 0) {
+                    content += sep + randomWord.substring(0, available);
                 }
             }
             break;
         }
     }
 
-    return result;
+    return prefix + content;
 }
 
 function highlightCharacters() {
     const randomTextElement = document.getElementById('randomText');
-    let text = randomTextElement.textContent;
+    const text = randomTextElement.textContent;
 
-    if (!text || text.trim() === '') {
-        alert("Először generálj szöveget!");
-        return;
-    }
+    if (!text || text.trim() === '') { shakeInput('highlightIndex'); return; }
 
     const inputVal = document.getElementById('highlightIndex').value.trim();
-    if (!inputVal) {
-        alert("Kérlek, adj meg legalább egy index értéket!");
-        return;
-    }
+    if (!inputVal) { shakeInput('highlightIndex'); return; }
 
-    // BUG FIX #2 & #3: Eltávolítottuk a nem használt prefixLength változót.
-    // Az indexelés most 1-alapú és a teljes szövegre vonatkozik (beleértve szóközöket is),
-    // pontosan úgy ahogy a felhasználó látja a szöveget.
-    const rawIndices = inputVal.split(',');
     const indices = new Set();
-
-    for (const raw of rawIndices) {
+    for (const raw of inputVal.split(',')) {
         const idx = parseInt(raw.trim());
         if (!isNaN(idx) && idx >= 1 && idx <= text.length) {
-            indices.add(idx - 1); // 1-alapú indexről 0-alapúra konvertálunk
+            indices.add(idx - 1); // 1-alapú → 0-alapú
         }
     }
 
-    let highlightedText = '';
+    let html = '';
     for (let i = 0; i < text.length; i++) {
         if (indices.has(i)) {
-            highlightedText += `<span style="background-color: yellow; color: #333;">${text[i]}</span>`;
+            html += `<span class="highlight-char">${escapeHtml(text[i])}</span>`;
         } else {
-            highlightedText += text[i];
+            html += escapeHtml(text[i]);
         }
     }
-    randomTextElement.innerHTML = highlightedText;
+    randomTextElement.innerHTML = html;
+}
+
+function escapeHtml(char) {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+    return map[char] || char;
 }
 
 function copyToClipboard() {
     const textToCopy = document.getElementById('randomText').innerText;
+    if (!textToCopy || textToCopy.trim() === '') return;
+
     navigator.clipboard.writeText(textToCopy)
         .then(() => {
-            const copyButton = document.getElementById('copyButton');
-            copyButton.textContent = '✓Másolva!';
-            copyButton.style.backgroundColor = '#28a745';
+            const btn = document.getElementById('copyButton');
+            btn.textContent = '✓ Másolva';
+            btn.classList.add('copied');
             setTimeout(() => {
-                copyButton.textContent = 'Másolás';
-                copyButton.style.backgroundColor = '#747474';
+                btn.textContent = 'Másolás';
+                btn.classList.remove('copied');
             }, 2000);
         })
-        .catch(err => {
-            console.error('Hiba történt a másolás során:', err);
-        });
+        .catch(err => console.error('Másolási hiba:', err));
 }
 
-function resizeOutputContainer() {
-    const outputContainer = document.getElementById('output-container');
-    const headerHeight = document.getElementById('output-header').clientHeight;
-    outputContainer.style.paddingTop = headerHeight + 'px';
+function shakeInput(id) {
+    const el = document.getElementById(id);
+    let count = 0;
+    el.style.borderColor = 'rgba(255, 80, 80, 0.5)';
+    const interval = setInterval(() => {
+        el.style.transform = count % 2 === 0 ? 'translateX(5px)' : 'translateX(-5px)';
+        count++;
+        if (count > 5) {
+            clearInterval(interval);
+            el.style.transform = '';
+        }
+    }, 60);
+    setTimeout(() => { el.style.borderColor = ''; }, 500);
+}
+
+function animateIn(el) {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(4px)';
+    el.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    requestAnimationFrame(() => {
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0)';
+    });
 }
