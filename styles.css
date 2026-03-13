@@ -153,6 +153,12 @@ h1 {
     background: linear-gradient(90deg, transparent, var(--accent), var(--accent-light), transparent);
     opacity: 0;
     transition: opacity 0.4s;
+    pointer-events: none;
+}
+
+.card-label {
+    position: relative;
+    z-index: 1;
 }
 
 .card:hover .card-accent-line { opacity: 1; }
@@ -172,6 +178,8 @@ h1 {
     display: flex;
     gap: 10px;
     align-items: center;
+    position: relative;
+    z-index: 1;
 }
 
 input[type="number"],
