@@ -12,76 +12,98 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function displayRandomText() {
-    const karakterszam = parseInt(document.getElementById('karakterszam').value);
+    const input = document.getElementById('karakterszam').value.trim();
+    const karakterszam = parseInt(input);
+
+    // BUG FIX #4: Input validáció - üres, NaN, negatív és túl nagy értékek kezelése
+    if (input === '' || isNaN(karakterszam)) {
+        alert("Kérlek, adj meg egy érvényes számot!");
+        return;
+    }
+    if (karakterszam < 0) {
+        alert("A karakterszám nem lehet negatív!");
+        return;
+    }
+    if (karakterszam === 0) {
+        document.getElementById('randomText').innerText = '';
+        resizeOutputContainer();
+        return;
+    }
     if (karakterszam > 100000) {
         alert("A generálandó szöveg túl hosszú.");
         return;
     }
+
     const randomText = generateRandomText(karakterszam);
     document.getElementById('randomText').innerText = randomText;
     resizeOutputContainer();
 }
 
 function generateRandomText(targetLength) {
-    const prefix = `${targetLength} `;
-    let result = prefix;
-    let currentLength = result.length;
+    // BUG FIX #1: Eltávolítottuk a prefix-et (pl. "100 ..."),
+    // ami beleszámított a karakterszámba és félrevezető volt.
+    // Most a generált szöveg pontosan targetLength karakter hosszú lesz.
+    let result = '';
+    let currentLength = 0;
 
-    const maxLength = prefix.length > 20 ? targetLength + prefix.length : targetLength + 20;
-
-    while (currentLength < maxLength) {
+    while (currentLength < targetLength) {
         const randomWord = words[Math.floor(Math.random() * words.length)];
-        if (currentLength + randomWord.length + 1 <= maxLength) {
-            if (currentLength !== prefix.length) { // Csak akkor adjunk hozzá szóközt, ha már volt szó hozzáadva
-                result += ' ';
-                currentLength++;
-            }
-            result += randomWord;
-            currentLength += randomWord.length;
+        const separator = currentLength === 0 ? '' : ' ';
+        const addition = separator + randomWord;
+
+        if (currentLength + addition.length <= targetLength) {
+            result += addition;
+            currentLength += addition.length;
         } else {
+            // Ha a szó nem fér el egészben, karakterenként töltjük fel a maradékot
+            const remaining = targetLength - currentLength;
+            if (remaining > 0) {
+                result += (currentLength === 0 ? '' : ' ').substring(0, Math.min(1, remaining));
+                currentLength = result.length;
+                if (currentLength < targetLength) {
+                    result += randomWord.substring(0, targetLength - currentLength);
+                    currentLength = result.length;
+                }
+            }
             break;
         }
     }
 
-    if (currentLength !== targetLength) {
-        if (currentLength < targetLength) {
-            while (currentLength < targetLength) {
-                const randomWord = words[Math.floor(Math.random() * words.length)];
-                if (currentLength + randomWord.length + 1 <= targetLength) {
-                    if (currentLength !== prefix.length) { // Csak akkor adjunk hozzá szóközt, ha már volt szó hozzáadva
-                        result += ' ';
-                        currentLength++;
-                    }
-                    result += randomWord;
-                    currentLength += randomWord.length;
-                } else {
-                    break;
-                }
-            }
-        } else {
-            result = result.substring(0, targetLength);
-        }
-    }
-
-    return result.trim();
+    return result;
 }
 
 function highlightCharacters() {
-    const indices = document.getElementById('highlightIndex').value.split(',').map(index => parseInt(index.trim()));
     const randomTextElement = document.getElementById('randomText');
     let text = randomTextElement.textContent;
-    let highlightedText = '';
-    let prefixLength = parseInt(text.split(' ')[0]) + 1; // Prefix hossza, +1 a szóköz miatt
-    let currentPos = 1; // Kezdeti pozíció a prefix után
 
+    if (!text || text.trim() === '') {
+        alert("Először generálj szöveget!");
+        return;
+    }
+
+    const inputVal = document.getElementById('highlightIndex').value.trim();
+    if (!inputVal) {
+        alert("Kérlek, adj meg legalább egy index értéket!");
+        return;
+    }
+
+    // BUG FIX #2 & #3: Eltávolítottuk a nem használt prefixLength változót.
+    // Az indexelés most 1-alapú és a teljes szövegre vonatkozik (beleértve szóközöket is),
+    // pontosan úgy ahogy a felhasználó látja a szöveget.
+    const rawIndices = inputVal.split(',');
+    const indices = new Set();
+
+    for (const raw of rawIndices) {
+        const idx = parseInt(raw.trim());
+        if (!isNaN(idx) && idx >= 1 && idx <= text.length) {
+            indices.add(idx - 1); // 1-alapú indexről 0-alapúra konvertálunk
+        }
+    }
+
+    let highlightedText = '';
     for (let i = 0; i < text.length; i++) {
-        if (text[i] !== ' ') { // Csak ha nem szóköz karakter, akkor ellenőrizzük, hogy a jelenlegi pozíciónk a megfelelő helyen van-e
-            if (indices.includes(currentPos)) {
-                highlightedText += `<span style="background-color: yellow;">${text[i]}</span>`;
-            } else {
-                highlightedText += text[i];
-            }
-            currentPos++;
+        if (indices.has(i)) {
+            highlightedText += `<span style="background-color: yellow; color: #333;">${text[i]}</span>`;
         } else {
             highlightedText += text[i];
         }
@@ -95,11 +117,11 @@ function copyToClipboard() {
         .then(() => {
             const copyButton = document.getElementById('copyButton');
             copyButton.textContent = '✓Másolva!';
-            copyButton.style.backgroundColor = '#28a745'; // Zöld háttérszín a jelzéshez
+            copyButton.style.backgroundColor = '#28a745';
             setTimeout(() => {
                 copyButton.textContent = 'Másolás';
-                copyButton.style.backgroundColor = '#747474'; // Visszaállítja az eredeti háttérszínt
-            }, 2000); // 2 másodperc után visszaáll az eredeti állapotra
+                copyButton.style.backgroundColor = '#747474';
+            }, 2000);
         })
         .catch(err => {
             console.error('Hiba történt a másolás során:', err);
