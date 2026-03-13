@@ -118,17 +118,16 @@ function copyToClipboard() {
     const textToCopy = document.getElementById('randomText').innerText;
     if (!textToCopy || textToCopy.trim() === '') return;
 
+    const btn = document.getElementById('copyButton');
+    launchConfetti(btn);
+    btn.textContent = '✓ Másolva';
+    btn.classList.add('copied');
+    setTimeout(() => {
+        btn.textContent = 'Másolás';
+        btn.classList.remove('copied');
+    }, 2000);
+
     navigator.clipboard.writeText(textToCopy)
-        .then(() => {
-            const btn = document.getElementById('copyButton');
-            btn.textContent = '✓ Másolva';
-            btn.classList.add('copied');
-            launchConfetti(btn);
-            setTimeout(() => {
-                btn.textContent = 'Másolás';
-                btn.classList.remove('copied');
-            }, 2000);
-        })
         .catch(err => console.error('Másolási hiba:', err));
 }
 
