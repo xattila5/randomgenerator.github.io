@@ -1,13 +1,40 @@
-let words = [
-    "alma.", "banán!", "cseresznye:", "dinnye%", "eper,", "füge()", "gránátalma<",
-    "szőlő>", "körte-", "citrom&", "narancs#", "kiwi@", "mango{", "papaya}", "kókuszä",
-    "szeder=", "áfonya", "ribizli", "málna", "egres", "barack", "szilva", "meggy",
-    "dió", "mandula", "mogyoró", "gesztenye", "datolya", "füge", "grapefruit",
-    "lime", "klementin", "mandarin", "körte", "kivi", "avokádó", "ananász",
-    "passiógyümölcs", "guava", "licsi", "búzafű", "líra"
+let words = [];
+let wordsLoading = null;
+
+const FALLBACK_WORDS = [
+    'alma', 'banán', 'cseresznye', 'dinnye', 'eper', 'füge', 'körte', 'citrom',
+    'narancs', 'szőlő', 'áfonya', 'ribizli', 'málna', 'barack', 'szilva', 'meggy',
+    'dió', 'mandula', 'mogyoró', 'gesztenye', 'datolya', 'avokádó', 'ananász',
+    'ház', 'kert', 'erdő', 'folyó', 'hegy', 'völgy', 'szél', 'eső', 'nap', 'hold',
+    'könyv', 'szék', 'asztal', 'ablak', 'ajtó', 'tükör', 'lámpa', 'óra', 'toll',
+    'kutya', 'macska', 'madár', 'hal', 'ló', 'tehén', 'birka', 'kecske', 'nyúl',
+    'virág', 'fa', 'levél', 'gyökér', 'ág', 'bokor', 'fű', 'mező', 'rét', 'tó',
 ];
 
-document.addEventListener('DOMContentLoaded', () => {});
+async function loadWords() {
+    if (words.length > 0) return;
+    if (wordsLoading) return wordsLoading;
+
+    wordsLoading = (async () => {
+        try {
+            const url = 'https://raw.githubusercontent.com/wooorm/dictionaries/main/dictionaries/hu/index.dic';
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const text = await res.text();
+            const parsed = text.split('\n')
+                .slice(1)
+                .map(l => l.split('/')[0].trim())
+                .filter(w => w.length >= 3 && w.length <= 14 &&
+                             /^[a-záéíóöőúüűA-ZÁÉÍÓÖŐÚÜŰ]+$/.test(w));
+            words = parsed.length >= 100 ? parsed : FALLBACK_WORDS;
+        } catch {
+            words = FALLBACK_WORDS;
+        }
+    })();
+    return wordsLoading;
+}
+
+document.addEventListener('DOMContentLoaded', () => { loadWords(); });
 
 function updateCharCount(text) {
     const el = document.getElementById('charCount');
@@ -19,7 +46,7 @@ function setStatus(active) {
     document.getElementById('statusDot').classList.toggle('active', active);
 }
 
-function displayRandomText() {
+async function displayRandomText() {
     const input = document.getElementById('karakterszam').value.trim();
     const karakterszam = parseInt(input);
 
@@ -32,6 +59,8 @@ function displayRandomText() {
 
     const outputCard = document.getElementById('outputCard');
     outputCard.classList.add('generating');
+
+    await loadWords();
 
     setTimeout(() => {
         const randomText = generateRandomText(karakterszam);

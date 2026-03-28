@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="440" viewBox="0 0 440 440">
+  <!-- Háttér -->
+  <circle cx="220" cy="220" r="196" fill="#141210"/>
+
+  <!-- Külső gyűrűk -->
+  <circle cx="220" cy="220" r="192" fill="none" stroke="#BF9130" stroke-width="3"/>
+  <circle cx="220" cy="220" r="172" fill="none" stroke="#BF9130" stroke-width="1.2"/>
+  <circle cx="220" cy="220" r="156" fill="none" stroke="#6A4E14" stroke-width="0.8"/>
+
+  <!-- Felső körirat: SAL PROFESSIONAL GROUP -->
+  <defs>
+    <path id="top-arc" d="M 220,220 m -168,0 a 168,168 0 1,1 336,0"/>
+    <path id="bot-arc" d="M 220,220 m -168,0 a 168,168 0 0,0 336,0"/>
+  </defs>
+
+  <text font-family="Georgia,'Times New Roman',serif" font-size="19" fill="#BF9130" letter-spacing="7">
+    <textPath href="#top-arc" startOffset="8%">SAL PROFESSIONAL GROUP</textPath>
+  </text>
+
+  <text font-family="Georgia,'Times New Roman',serif" font-size="19" fill="#6A4E14" letter-spacing="10">
+    <textPath href="#bot-arc" startOffset="30%">EST. MMXXIV</textPath>
+  </text>
+
+  <!-- Felső csillag dísz -->
+  <text x="220" y="68" text-anchor="middle" dominant-baseline="central"
+        font-family="Georgia,serif" font-size="20" fill="#BF9130">✦</text>
+
+  <!-- Alsó rombusz dísz -->
+  <polygon points="220,344 228,356 220,368 212,356" fill="#BF9130" opacity="0.6"/>
+
+  <!-- SAL monogram -->
+  <text x="220" y="232" text-anchor="middle" dominant-baseline="central"
+        font-family="Georgia,'Times New Roman',serif"
+        font-size="104" font-weight="700" fill="#D4AA46" letter-spacing="8">SAL</text>
+</svg>

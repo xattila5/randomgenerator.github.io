@@ -62,11 +62,11 @@ body::after {
     z-index: 1;
     height: 100vh;
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: 1fr;
     max-width: 900px;
     margin: 0 auto;
-    padding: 28px 32px 24px;
-    gap: 20px;
+    padding: 153px 32px 24px;
+    gap: 0;
 }
 
 .main-grid {
@@ -76,41 +76,99 @@ body::after {
     min-height: 0;
 }
 
-/* ─── Header ────────────────────────────────────────── */
+/* ─── Header (fixed) ────────────────────────────────── */
 
 header {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 900px;
+    padding: 20px 32px 18px;
+    min-height: 153px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
+    z-index: 200;
 }
 
 .logo-group {
     display: flex;
     align-items: center;
     gap: 12px;
+    position: relative;
 }
 
-.logo-icon {
-    width: 36px;
-    height: 36px;
+.hamburger-btn {
+    height: 34px;
+    padding: 0 11px;
     background: linear-gradient(135deg, var(--accent-light), var(--accent-dark));
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 2px 8px rgba(184,154,90,0.25);
 }
 
-.logo-icon svg { width: 18px; height: 18px; fill: #0e0e10; }
+.hamburger-btn:hover {
+    opacity: 0.9;
+    transform: scale(1.04);
+    box-shadow: 0 4px 14px rgba(184,154,90,0.4);
+}
+.hamburger-btn:active { transform: scale(0.97); }
 
-h1 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--text);
+/* ─── SAL Logo ───────────────────────────────────────── */
+
+.logo-wrapper {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 115px;
+    height: 115px;
+    cursor: default;
+    user-select: none;
+}
+
+.sal-logo {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.sal-hover-ring {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.sal-arc {
+    fill: none;
+    stroke: #D4AA46;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 629;
+    stroke-dashoffset: 629;
+    transition: stroke-dashoffset 0.75s cubic-bezier(0.6, 0, 0.2, 1);
+}
+
+.logo-wrapper:hover .sal-arc {
+    stroke-dashoffset: 0;
 }
 
 .version-badge {
+    position: fixed;
+    bottom: 16px;
+    right: 24px;
+    z-index: 100;
     font-family: 'DM Mono', monospace;
     font-size: 0.7rem;
     padding: 3px 10px;
@@ -429,3 +487,685 @@ input::placeholder { color: var(--muted); }
     min-height: 80px;
     color: transparent;
 }
+
+/* ─── Navigation dropdown ────────────────────────────── */
+
+.nav-dropdown {
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    min-width: 200px;
+    background: var(--surface);
+    border: 1px solid var(--border-hover);
+    border-radius: 14px;
+    padding: 6px;
+    z-index: 200;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+    animation: dropIn 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-dropdown.open { display: flex; }
+
+@keyframes dropIn {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.nav-link {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 11px 14px;
+    border-radius: 9px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nav-link:hover { color: var(--text); background: var(--surface2); }
+
+.nav-link.active {
+    background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+    color: #0e0e10;
+    font-weight: 600;
+}
+
+.nav-link-icon { font-size: 1rem; }
+
+/* ─── Weather page ───────────────────────────────────── */
+
+.weather-page {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+}
+
+.weather-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.weather-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface2) transparent;
+}
+
+.weather-grid::-webkit-scrollbar       { width: 4px; }
+.weather-grid::-webkit-scrollbar-track { background: transparent; }
+.weather-grid::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 2px; }
+
+/* ─── Today card (centered, large) ─────────────────── */
+
+.weather-today-wrapper {
+    display: flex;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.weather-today-card {
+    width: 340px;
+    background: var(--surface);
+    border: 1px solid rgba(184,154,90,0.25);
+    border-radius: 20px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+}
+
+.weather-today-card:hover { border-color: rgba(184,154,90,0.5); }
+
+.weather-today-card .weather-card-accent { opacity: 0.6; }
+
+/* ─── Other days row ────────────────────────────────── */
+
+.weather-days-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.weather-day-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+}
+
+.weather-day-card:hover { border-color: var(--border-hover); }
+
+.weather-day-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--glass);
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+}
+
+.weather-day-card:hover::before { opacity: 1; }
+
+.weather-card-accent {
+    position: absolute;
+    top: 0; left: 14px; right: 14px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent-light), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
+}
+
+.weather-day-card:hover .weather-card-accent { opacity: 1; }
+
+
+/* ─── Large period (today card) ─────────────────────── */
+
+.weather-period--large {
+    position: relative;
+    z-index: 1;
+}
+
+.weather-period--large .weather-icon { font-size: 3rem; }
+.weather-period--large .weather-temp { font-size: 1.8rem; }
+.weather-period--large .weather-desc { font-size: 0.74rem; }
+
+/* ─── Refresh button ─────────────────────────────────── */
+
+.btn-refresh {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-refresh:hover  { border-color: rgba(184,154,90,0.45); color: var(--accent-light); }
+.btn-refresh:active { transform: scale(0.96); }
+
+.btn-refresh.loading {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+.btn-refresh .refresh-icon {
+    display: inline-block;
+    transition: transform 0.3s;
+}
+
+.btn-refresh.loading .refresh-icon {
+    animation: spin 0.8s linear infinite;
+}
+
+.weather-day-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    position: relative;
+    z-index: 1;
+}
+
+.weather-day-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 2px;
+    position: relative;
+    z-index: 1;
+}
+
+.weather-period {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px;
+    background: var(--surface2);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    position: relative;
+    z-index: 1;
+}
+
+.weather-period-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.55rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0.85;
+}
+
+.weather-icon { font-size: 2.4rem; line-height: 1.1; }
+
+.weather-temp {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+}
+
+.weather-desc {
+    font-size: 0.68rem;
+    color: var(--muted);
+    line-height: 1.3;
+}
+
+.weather-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 2px;
+    border-top: 1px solid var(--border);
+    padding-top: 5px;
+}
+
+.weather-meta-item {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.58rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.weather-meta-item b { color: var(--accent-light); font-weight: 500; }
+
+.weather-loading {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    padding: 60px 0;
+}
+
+.weather-spinner {
+    width: 30px;
+    height: 30px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.weather-error {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-align: center;
+    padding: 60px 0;
+}
+
+.weather-error-icon { font-size: 2.2rem; margin-bottom: 4px; }
+
+/* ─── Placeholder page ───────────────────────────────── */
+
+.placeholder-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-align: center;
+}
+
+.placeholder-icon { font-size: 3rem; opacity: 0.4; margin-bottom: 8px; }
+
+/* ─── News page ──────────────────────────────────────── */
+
+.news-page {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.news-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.news-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    align-content: start;
+}
+
+/* ── News page scroll override ─── */
+body.news-body {
+    overflow: auto;
+}
+body.news-body .app {
+    height: auto;
+    min-height: 100vh;
+    max-width: 100%;
+    padding-left: 32px;
+    padding-right: 32px;
+    padding-bottom: 48px;
+}
+
+.news-loading {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    padding: 60px 0;
+}
+
+.news-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    position: relative;
+    transition: border-color 0.25s, transform 0.22s, box-shadow 0.22s;
+}
+
+.news-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+}
+
+.news-card-accent {
+    position: absolute;
+    top: 0; left: 14px; right: 14px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent-light), transparent);
+    opacity: 0;
+    transition: opacity 0.35s;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.news-card:hover .news-card-accent { opacity: 1; }
+
+.news-card-img-wrap {
+    width: 100%;
+    height: 148px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--surface2);
+}
+
+.news-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.4s ease;
+}
+
+.news-card:hover .news-card-img { transform: scale(1.04); }
+
+.news-card-body {
+    padding: 14px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    flex: 1;
+}
+
+.news-card-category {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.56rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0.9;
+}
+
+.news-card-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--accent-light);
+    line-height: 1.4;
+    display: block;
+}
+
+.news-card-desc {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+    line-height: 1.6;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.news-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+}
+
+.news-card-date {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.58rem;
+    color: var(--muted);
+    opacity: 0.7;
+}
+
+.news-open-hint {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--accent-light);
+    letter-spacing: 0.06em;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.news-card:hover .news-open-hint { opacity: 1; }
+
+/* ─── Language toggle ────────────────────────────────── */
+
+.lang-toggle {
+    display: flex;
+    gap: 3px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 3px;
+}
+
+.lang-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.22s;
+}
+
+.lang-btn:hover { color: var(--text); }
+
+.lang-btn.active {
+    background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+    color: #0e0e10;
+    font-weight: 600;
+}
+
+/* ─── News card (clickable div) ─────────────────────── */
+
+.news-card {
+    cursor: pointer;
+}
+
+/* ─── Article drawer ─────────────────────────────────── */
+
+.news-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.news-drawer.open { display: flex; }
+
+.news-drawer-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeInBg 0.25s ease;
+}
+
+@keyframes fadeInBg { from { opacity: 0; } to { opacity: 1; } }
+
+.news-drawer-panel {
+    position: relative;
+    z-index: 1;
+    width: min(680px, 100%);
+    max-height: calc(100vh - 80px);
+    background: var(--surface);
+    border: 1px solid var(--border-hover);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 28px 72px rgba(0, 0, 0, 0.65);
+    animation: drawerIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes drawerIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.news-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.22);
+}
+
+.news-drawer-close {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: all 0.2s;
+}
+
+.news-drawer-close:hover { color: var(--text); border-color: var(--border-hover); }
+
+.news-drawer-ext {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--accent-light);
+    text-decoration: none;
+    letter-spacing: 0.06em;
+    transition: opacity 0.2s;
+}
+
+.news-drawer-ext:hover { opacity: 0.7; }
+
+.news-drawer-body {
+    overflow-y: auto;
+    flex: 1;
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface2) transparent;
+}
+
+.news-drawer-body::-webkit-scrollbar       { width: 4px; }
+.news-drawer-body::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 2px; }
+
+.news-drawer-img {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    display: block;
+}
+
+.news-drawer-content {
+    padding: 22px 26px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.news-drawer-cat {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.news-drawer-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.42;
+}
+
+.news-drawer-date {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--muted);
+}
+
+.news-drawer-sep {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+}
+
+.news-drawer-desc {
+    font-size: 0.87rem;
+    color: rgba(240, 240, 240, 0.82);
+    line-height: 1.78;
+}
+
+.news-drawer-desc p   { margin-bottom: 10px; }
+.news-drawer-desc img { display: none; }
+.news-drawer-desc a   { color: var(--accent-light); text-decoration: underline; }
