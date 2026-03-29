@@ -1,0 +1,12 @@
+[build]
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/guardian"
+  to   = "/.netlify/functions/guardian"
+  status = 200
+
+[[redirects]]
+  from = "/api/deepl"
+  to   = "/.netlify/functions/deepl"
+  status = 200

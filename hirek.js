@@ -1,19 +1,16 @@
-/* ── Config ─────────────────────────────────────────── */
+/* ── API végpontok ────────────────────────────────────── */
+// Ha Netlify-on fut: /api/... proxy (kulcsok a szerveren)
+// Ha lokálisan fut: config.js-ből olvassa a kulcsokat
+const IS_NETLIFY = window.location.hostname !== 'localhost' &&
+                   window.location.hostname !== '127.0.0.1' &&
+                   !window.location.protocol.startsWith('file');
+const LOCAL_CFG  = (typeof SAL_CONFIG !== 'undefined') ? SAL_CONFIG : {};
+const DEEPL_KEY  = LOCAL_CFG.DEEPL_KEY || '';
+let deeplExhausted = false;
+let translationCache = {};   // napi cache, localStorage-ból töltve
 
-const FEEDS = [
-    { name: 'CNN',      url: 'https://rss.cnn.com/rss/edition.rss' },
-    { name: 'BBC News', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
-    { name: 'NPR',      url: 'https://feeds.npr.org/1001/rss.xml' },
-];
-
-const PROXIES  = [
-    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-];
-
-const MEDIA_NS = 'http://search.yahoo.com/mrss/';
-const TIMEOUT  = 8000;
+const GUARDIAN_SECTIONS = ['politics', 'world', 'business'];
+const TIMEOUT = 9000;
 
 let articles     = [];
 let translations = {};
@@ -22,16 +19,12 @@ let currentLang  = 'en';
 /* ── Utils ──────────────────────────────────────────── */
 
 function withTimeout(p, ms) {
-    return Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('Időtúllépés')), ms))]);
+    return Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))]);
 }
 
-// Safe HTML escape for inserting into innerHTML
 function esc(str) {
     return (str || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function decodeEntities(str) {
@@ -44,29 +37,6 @@ function stripHtml(str) {
     return (str || '').replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
-function sanitizeDesc(str) {
-    // Keep basic formatting but strip scripts/events
-    return (str || '')
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/\son\w+="[^"]*"/gi, '')
-        .replace(/\son\w+='[^']*'/gi, '');
-}
-
-function getText(el, tag) {
-    return el.querySelector(tag)?.textContent?.trim() || '';
-}
-
-function getImage(el) {
-    const mc = el.getElementsByTagNameNS(MEDIA_NS, 'content')[0];
-    if (mc?.getAttribute('url')) return mc.getAttribute('url');
-    const mt = el.getElementsByTagNameNS(MEDIA_NS, 'thumbnail')[0];
-    if (mt?.getAttribute('url')) return mt.getAttribute('url');
-    const enc = el.querySelector('enclosure');
-    if (enc?.getAttribute('url')) return enc.getAttribute('url');
-    const m = getText(el, 'description').match(/<img[^>]+src=["']([^"']+)["']/i);
-    return m ? m[1] : '';
-}
-
 function formatDate(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr);
@@ -74,78 +44,128 @@ function formatDate(dateStr) {
     return d.toLocaleDateString('hu-HU', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-/* ── RSS fetch (proxy chain + feed fallback) ────────── */
+const SECTION_LABELS = {
+    politics: 'POLITIKA',
+    world:    'VILÁG',
+    business: 'GAZDASÁG',
+};
 
-async function fetchViaProxy(feedUrl) {
-    let lastErr;
-    for (const makeProxy of PROXIES) {
-        try {
-            const res = await withTimeout(fetch(makeProxy(feedUrl)), TIMEOUT);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            let text = await res.text();
-            if (text.trimStart().startsWith('{')) {
-                const j = JSON.parse(text);
-                text = j.contents || j.data || text;
-            }
-            const xml   = new DOMParser().parseFromString(text, 'text/xml');
-            if (xml.querySelector('parsererror')) throw new Error('XML parse hiba');
-            const items = [...xml.querySelectorAll('item')].slice(0, 15);
-            if (!items.length) throw new Error('Üres feed');
-            return items;
-        } catch (e) { lastErr = e; }
-    }
-    throw lastErr || new Error('Proxy elérhetetlen');
+/* ── Guardian fetch ──────────────────────────────────── */
+
+function sanitizeGuardianHtml(html) {
+    if (!html) return '';
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    // Zaj eltávolítása
+    ['script','style','iframe','noscript',
+     '[class*="rich-link"]','[class*="ad-slot"]','[class*="witness"]',
+     '[data-component="rich-link"]','.element-rich-link',
+    ].forEach(sel => { try { doc.querySelectorAll(sel).forEach(e => e.remove()); } catch {} });
+    // Event handlerek eltávolítása
+    doc.querySelectorAll('*').forEach(el => {
+        [...el.attributes].filter(a => a.name.startsWith('on')).forEach(a => el.removeAttribute(a.name));
+    });
+    return doc.body.innerHTML;
 }
 
-function parseItems(items, sourceName) {
-    return items.map(el => {
-        const rawDesc = getText(el, 'description');
-        return {
-            title:       decodeEntities(getText(el, 'title')),
-            description: decodeEntities(stripHtml(rawDesc)).substring(0, 400),
-            descHtml:    sanitizeDesc(rawDesc),
-            url:         getText(el, 'link') || getText(el, 'guid') || '#',
-            image:       getImage(el),
-            date:        getText(el, 'pubDate'),
-            category:    (getText(el, 'category') || sourceName).toUpperCase(),
-        };
-    }).filter(a => a.title);
+async function fetchSection(section) {
+    let res;
+    if (IS_NETLIFY) {
+        res = await withTimeout(
+            fetch(`/api/guardian?section=${encodeURIComponent(section)}`), TIMEOUT
+        );
+    } else {
+        const params = new URLSearchParams({
+            'api-key':     LOCAL_CFG.GUARDIAN_KEY || '',
+            section,
+            'show-fields': 'body,thumbnail,trailText',
+            'order-by':    'newest',
+            'page-size':   '10',
+        });
+        res = await withTimeout(
+            fetch(`https://content.guardianapis.com/search?${params}`), TIMEOUT
+        );
+    }
+    if (!res.ok) throw new Error(`Guardian HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.response?.status !== 'ok') throw new Error('Guardian API hiba');
+
+    return data.response.results
+        .filter(a => a.webTitle && a.webUrl)
+        .map(a => {
+            const rawBody = a.fields?.body || '';
+            return {
+                title:       a.webTitle,
+                description: stripHtml(a.fields?.trailText || ''),
+                url:         a.webUrl,
+                image:       a.fields?.thumbnail || '',
+                date:        a.webPublicationDate || '',
+                category:    SECTION_LABELS[section] || section.toUpperCase(),
+                source:      'The Guardian',
+                fullHtml:    sanitizeGuardianHtml(rawBody),   // képekkel, formázással
+                fullText:    stripHtml(rawBody),               // fordításhoz
+            };
+        });
 }
 
 /* ── Main fetch ─────────────────────────────────────── */
 
 async function fetchNews() {
-    const container = document.getElementById('newsContainer');
-    const btn       = document.getElementById('refreshBtn');
-
+    const btn = document.getElementById('refreshBtn');
     if (btn) btn.classList.add('loading');
     translations = {};
-    setLoading('Hírek betöltése…');
+    initTranslationCache();
 
-    let lastErr;
-    for (const feed of FEEDS) {
-        try {
-            const items = await fetchViaProxy(feed.url);
-            articles    = parseItems(items, feed.name);
-            if (!articles.length) throw new Error('Üres cikklista');
-
-            const lbl = document.getElementById('newsSourceLabel');
-            if (lbl) lbl.textContent = `${feed.name} — Legfrissebb hírek`;
-
-            if (currentLang === 'hu') await translateAll();
-            renderNews();
-            if (btn) btn.classList.remove('loading');
-            return;
-        } catch (e) { lastErr = e; }
+    if (!IS_NETLIFY && !LOCAL_CFG.GUARDIAN_KEY?.trim()) {
+        document.getElementById('newsContainer').innerHTML = `
+            <div class="weather-error">
+                <div class="weather-error-icon">🔑</div>
+                <div>Hiányzik a Guardian API kulcs.</div>
+                <div style="font-size:.65rem;margin-top:8px;opacity:.6;line-height:1.6">
+                    Regisztrálj ingyen:<br>
+                    <strong>open-platform.theguardian.com/access</strong><br>
+                    majd add meg a kulcsot a <code>hirek.js</code> tetején.
+                </div>
+            </div>`;
+        if (btn) btn.classList.remove('loading');
+        return;
     }
 
-    container.innerHTML = `
-        <div class="weather-error">
-            <div class="weather-error-icon">⚠️</div>
-            <div>Nem sikerült betölteni a híreket.</div>
-            <div style="font-size:.62rem;margin-top:6px;opacity:.5">${esc(lastErr?.message || '')}</div>
-            <button class="btn-primary" style="margin-top:20px" onclick="fetchNews()"><span>Újrapróbálás</span></button>
-        </div>`;
+    setLoading('Hírek betöltése…');
+
+    try {
+        // Politika + Világ + Gazdaság párhuzamosan
+        const results = await Promise.allSettled(
+            GUARDIAN_SECTIONS.map(s => fetchSection(s))
+        );
+
+        const merged = results
+            .filter(r => r.status === 'fulfilled')
+            .flatMap(r => r.value);
+
+        // Deduplikálás URL szerint + dátum szerinti rendezés
+        const seen = new Set();
+        articles = merged
+            .filter(a => { if (seen.has(a.url)) return false; seen.add(a.url); return true; })
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        if (!articles.length) throw new Error('Üres cikklista – ellenőrizd az API kulcsot');
+
+        const lbl = document.getElementById('newsSourceLabel');
+        if (lbl) lbl.textContent = 'The Guardian — Politika · Világ · Gazdaság';
+
+        if (currentLang === 'hu') await translateAll();
+        renderNews();
+
+    } catch (err) {
+        document.getElementById('newsContainer').innerHTML = `
+            <div class="weather-error">
+                <div class="weather-error-icon">⚠️</div>
+                <div>Nem sikerült betölteni a híreket.</div>
+                <div style="font-size:.62rem;margin-top:6px;opacity:.5">${esc(err?.message || '')}</div>
+                <button class="btn-primary" style="margin-top:20px" onclick="fetchNews()"><span>Újrapróbálás</span></button>
+            </div>`;
+    }
+
     if (btn) btn.classList.remove('loading');
 }
 
@@ -161,7 +181,6 @@ function setLoading(msg) {
 
 function renderNews() {
     const container = document.getElementById('newsContainer');
-
     container.innerHTML = articles.map((article, i) => {
         const t       = (currentLang === 'hu' && translations[i]) ? translations[i] : article;
         const title   = esc(t.title       || article.title);
@@ -192,48 +211,14 @@ function renderNews() {
     }).join('');
 }
 
-/* ── Drawer ─────────────────────────────────────────── */
+/* ── Article page ────────────────────────────────────── */
 
 function openArticle(i) {
     const article = articles[i];
     if (!article) return;
-
-    const t     = (currentLang === 'hu' && translations[i]) ? translations[i] : article;
-    const title = t.title       || article.title;
-    const desc  = t.description || article.description;
-    const descHtml = t.descHtml || article.descHtml || esc(desc);
-
-    // Image
-    const imgEl = document.getElementById('drawerImg');
-    if (article.image) {
-        imgEl.src   = article.image;
-        imgEl.style.display = 'block';
-        imgEl.onerror = () => { imgEl.style.display = 'none'; };
-    } else {
-        imgEl.style.display = 'none';
-    }
-
-    // External link
-    document.getElementById('drawerExtLink').href = article.url;
-
-    // Content
-    document.getElementById('drawerContent').innerHTML = `
-        <div class="news-drawer-cat">${esc(article.category)}</div>
-        <div class="news-drawer-title">${esc(title)}</div>
-        <div class="news-drawer-date">${esc(formatDate(article.date))}</div>
-        <div class="news-drawer-sep"></div>
-        <div class="news-drawer-desc">${descHtml || `<p>${esc(desc)}</p>`}</div>`;
-
-    document.getElementById('newsDrawer').classList.add('open');
-    document.body.style.overflow = 'hidden';
+    localStorage.setItem('sal_article', JSON.stringify(article));
+    window.open('cikk.html', '_blank');
 }
-
-function closeDrawer() {
-    document.getElementById('newsDrawer').classList.remove('open');
-    document.body.style.overflow = '';
-}
-
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
 
 /* ── Language ───────────────────────────────────────── */
 
@@ -253,42 +238,105 @@ async function setLang(lang) {
     renderNews();
 }
 
-/* ── AI Translation (Google Neural MT) ─────────────── */
+/* ── Translation cache (napi, localStorage) ─────────── */
+
+function getTodayCacheKey() {
+    return 'sal_trans_' + new Date().toISOString().slice(0, 10);
+}
+
+function initTranslationCache() {
+    const today = getTodayCacheKey();
+    // Régi napok törlése
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k?.startsWith('sal_trans_') && k !== today) localStorage.removeItem(k);
+    }
+    try {
+        translationCache = JSON.parse(localStorage.getItem(today) || '{}');
+    } catch { translationCache = {}; }
+}
+
+function persistCache() {
+    try {
+        localStorage.setItem(getTodayCacheKey(), JSON.stringify(translationCache));
+    } catch {}
+}
+
+/* ── DeepL quota figyelmeztetés ─────────────────────── */
+
+function showDeeplWarning() {
+    if (document.getElementById('deepl-warning')) return;
+    const el = document.createElement('div');
+    el.id = 'deepl-warning';
+    el.className = 'deepl-warning';
+    el.innerHTML = `<span>⚠️ A DeepL fordítási keret mára elfogyott — Google fordítóra váltottunk.</span>
+        <button class="deepl-warning-close" onclick="this.parentElement.remove()">×</button>`;
+    const controls = document.querySelector('.news-controls');
+    if (controls) controls.insertAdjacentElement('afterend', el);
+}
+
+/* ── AI Translation ─────────────────────────────────── */
 
 async function translateAll() {
     const indices = articles.map((_, i) => i).filter(i => !translations[i]);
     await Promise.all(indices.map(async i => {
         const a = articles[i];
-        const [title, description, descHtml] = await Promise.all([
+        const [title, description] = await Promise.all([
             translateText(a.title),
-            translateText(a.description),
-            translateText(stripHtml(a.descHtml)).then(t => `<p>${t}</p>`),
+            translateText(a.description.substring(0, 500)),
         ]);
-        translations[i] = { title, description, descHtml };
+        translations[i] = { title, description };
     }));
 }
 
 async function translateText(text) {
     if (!text?.trim()) return text;
     const q = text.substring(0, 500);
-    // Primary: Google Neural MT (unofficial CORS endpoint)
-    try {
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hu&dt=t&q=${encodeURIComponent(q)}`;
-        const res = await withTimeout(fetch(url), 6000);
-        const data = await res.json();
-        const translated = data[0]?.map(c => c?.[0] || '').join('') || '';
-        if (translated) return translated;
-    } catch { /* fall through */ }
 
-    // Fallback: MyMemory
-    try {
-        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=en|hu`;
-        const res = await withTimeout(fetch(url), 6000);
-        const data = await res.json();
-        if (data.responseStatus === 200) return decodeEntities(data.responseData.translatedText);
-    } catch { /* fall through */ }
+    // Cache találat
+    if (translationCache[q]) return translationCache[q];
 
-    return text; // original if all fail
+    let result = '';
+
+    // 1. DeepL (ha még nincs kimerítve)
+    if (!deeplExhausted) {
+        try {
+            const deeplBody = JSON.stringify({ text: [q], source_lang: 'EN', target_lang: 'HU' });
+            const deeplReq  = IS_NETLIFY
+                ? fetch('/api/deepl', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: deeplBody })
+                : fetch('https://api-free.deepl.com/v2/translate', {
+                    method: 'POST',
+                    headers: { 'Authorization': `DeepL-Auth-Key ${DEEPL_KEY}`, 'Content-Type': 'application/json' },
+                    body: deeplBody,
+                  });
+            const res = await withTimeout(deeplReq, 8000);
+            if (res.status === 456) {
+                // Keret elfogyott
+                deeplExhausted = true;
+                showDeeplWarning();
+            } else if (res.ok) {
+                const data = await res.json();
+                result = data.translations?.[0]?.text || '';
+            }
+        } catch { /* hálózati hiba, tovább */ }
+    }
+
+    // 2. Google fordító (fallback)
+    if (!result) {
+        try {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hu&dt=t&q=${encodeURIComponent(q)}`;
+            const res = await withTimeout(fetch(url), 6000);
+            const data = await res.json();
+            result = data[0]?.map(c => c?.[0] || '').join('') || '';
+        } catch { /* fall through */ }
+    }
+
+    if (result) {
+        translationCache[q] = result;
+        persistCache();
+        return result;
+    }
+    return text;
 }
 
 /* ── Boot ───────────────────────────────────────────── */
