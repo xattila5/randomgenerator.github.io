@@ -7,6 +7,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@900&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0e0e10">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="SAL Tools">
+    <link rel="apple-touch-icon" href="icon.svg">
 </head>
 <body>
     <div class="app">
@@ -21,6 +27,7 @@
                     <a href="hirek.html" class="nav-link"><span class="nav-link-icon">📰</span>Hírek</a>
                 </div>
             </div>
+            <button id="pwaInstallBtn" class="btn-pwa-install" style="display:none" onclick="pwaInstall()">Telepítés</button>
             <div class="logo-wrapper">
                 <img class="sal-logo" src="SAL_Logo.svg.svg" alt="SAL">
                 <svg class="sal-hover-ring" viewBox="0 0 440 440" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

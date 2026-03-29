@@ -1,0 +1,25 @@
+{
+  "name": "S.A.L. Tools",
+  "short_name": "SAL Tools",
+  "description": "Időjárás előrejelzés és friss hírek",
+  "start_url": "/idojaras.html",
+  "display": "standalone",
+  "background_color": "#0e0e10",
+  "theme_color": "#0e0e10",
+  "orientation": "any",
+  "lang": "hu",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

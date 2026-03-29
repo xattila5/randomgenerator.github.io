@@ -7,6 +7,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@900&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0e0e10">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="SAL Tools">
+    <link rel="apple-touch-icon" href="icon.svg">
 </head>
 <body>
     <div class="app">
@@ -21,6 +27,7 @@
                     <a href="hirek.html" class="nav-link"><span class="nav-link-icon">📰</span>Hírek</a>
                 </div>
             </div>
+            <button id="pwaInstallBtn" class="btn-pwa-install" style="display:none" onclick="pwaInstall()">Telepítés</button>
             <div class="logo-wrapper">
                 <img class="sal-logo" src="SAL_Logo.svg.svg" alt="SAL">
                 <svg class="sal-hover-ring" viewBox="0 0 440 440" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -32,10 +39,18 @@
 
         <div class="weather-page">
             <div class="weather-page-header">
-                <span class="output-label">Budapest &mdash; 5 napos előrejelzés</span>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                    <span class="output-label" id="cityTitle">Budapest &mdash; 9 napos előrejelzés</span>
+                    <div class="city-selector">
+                        <button class="btn-city active" id="city-budapest" onclick="selectCity('budapest')"><span>Budapest</span></button>
+                        <button class="btn-city" id="city-gyula"    onclick="selectCity('gyula')"><span>Gyula</span></button>
+                        <button class="btn-city" id="city-szeged"   onclick="selectCity('szeged')"><span>Szeged</span></button>
+                        <button class="btn-city" id="city-xian"     onclick="selectCity('xian')"><span>Xi'an</span></button>
+                    </div>
+                </div>
                 <div style="display:flex;align-items:center;gap:12px">
                     <span class="char-count" id="lastUpdated"></span>
-                    <button class="btn-refresh" id="refreshBtn" onclick="fetchWeather()">
+                    <button class="btn-refresh" id="refreshBtn" onclick="fetchWeather(true)">
                         <span class="refresh-icon">↻</span> Frissítés
                     </button>
                 </div>

@@ -49,7 +49,36 @@ const WeatherCanvas = (() => {
             for (let i = 0; i < 12; i++) addFogPuff(true);
         } else if (effect === 'cloud') {
             for (let i = 0; i < 6; i++) addCloud(true);
+        } else if (effect === 'moon') {
+            for (let i = 0; i < 90; i++) addStar();
+        } else if (effect === 'mooncloud') {
+            for (let i = 0; i < 90; i++) addStar();
+            for (let i = 0; i < 4; i++) addNightCloud(true);
         }
+    }
+
+    function addStar() {
+        particles.push({
+            type:  'star',
+            x:     Math.random() * W,
+            y:     Math.random() * H * 0.72,
+            r:     Math.random() * 1.3 + 0.3,
+            alpha: Math.random() * 0.55 + 0.28,
+            phase: Math.random() * Math.PI * 2,
+            spd:   Math.random() * 0.018 + 0.006,
+        });
+    }
+
+    function addNightCloud(scatter) {
+        const w = W * (Math.random() * 0.5 + 0.35);
+        particles.push({
+            type:  'nightcloud',
+            x:     scatter ? Math.random() * (W + w) - w * 0.5 : -w,
+            y:     H * (Math.random() * 0.35 + 0.02),
+            w, h:  w * (Math.random() * 0.3 + 0.22),
+            spd:   Math.random() * 0.22 + 0.08,
+            alpha: Math.random() * 0.16 + 0.06,
+        });
     }
 
     function addRaindrop(scatter) {
@@ -148,6 +177,14 @@ const WeatherCanvas = (() => {
                 stops = [
                     [0,   'rgba(22, 28, 48, 0.82)'],
                     [0.5, 'rgba(18, 24, 42, 0.6)'],
+                    [1,   'rgba(14, 14, 16, 0)'],
+                ];
+                break;
+            case 'moon':
+            case 'mooncloud':
+                stops = [
+                    [0,   'rgba(4, 6, 22, 0.97)'],
+                    [0.4, 'rgba(7, 10, 32, 0.80)'],
                     [1,   'rgba(14, 14, 16, 0)'],
                 ];
                 break;
@@ -347,6 +384,56 @@ const WeatherCanvas = (() => {
         ctx.restore();
     }
 
+    /* ── Moon & stars ────────────────────────────────── */
+
+    function drawMoon() {
+        const cx = W * 0.72, cy = H * 0.18;
+        const pulse = Math.sin(t * 0.012) * 0.5 + 0.5;
+
+        // Atmospheric halo
+        const atm = ctx.createRadialGradient(cx, cy, 0, cx, cy, H * 0.38);
+        atm.addColorStop(0,   `rgba(200, 215, 255, ${0.08 + pulse * 0.03})`);
+        atm.addColorStop(0.4, `rgba(150, 170, 220, ${0.03 + pulse * 0.01})`);
+        atm.addColorStop(1,   'rgba(100, 130, 200, 0)');
+        ctx.fillStyle = atm;
+        ctx.fillRect(0, 0, W, H);
+
+        // Moon disc
+        ctx.save();
+        ctx.translate(cx, cy);
+        const disc = ctx.createRadialGradient(5, -5, 0, 0, 0, 36);
+        disc.addColorStop(0,    `rgba(255, 252, 225, ${0.96 + pulse * 0.04})`);
+        disc.addColorStop(0.55, 'rgba(235, 228, 195, 0.86)');
+        disc.addColorStop(1,    'rgba(200, 205, 175, 0)');
+        ctx.fillStyle = disc;
+        ctx.beginPath();
+        ctx.arc(0, 0, 36, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    function drawStars() {
+        particles.filter(p => p.type === 'star').forEach(p => {
+            p.phase += p.spd;
+            const a = p.alpha * (0.55 + Math.sin(p.phase) * 0.45);
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, a)})`;
+            ctx.fill();
+        });
+    }
+
+    function drawNightClouds() {
+        particles.filter(p => p.type === 'nightcloud').forEach(p => {
+            p.x += p.spd;
+            if (p.x > W + p.w * 0.6) {
+                p.x = -p.w * 0.6;
+                p.y = H * (Math.random() * 0.35 + 0.02);
+            }
+            drawCloudShape(p.x, p.y, p.w, p.h, p.alpha);
+        });
+    }
+
     /* ── Main loop ────────────────────────────────────── */
 
     function loop() {
@@ -356,12 +443,14 @@ const WeatherCanvas = (() => {
         drawBg();
 
         switch (effect) {
-            case 'sun':     drawSun();    break;
-            case 'rain':    drawRain();   break;
-            case 'thunder': drawRain();   drawLightning(); break;
-            case 'snow':    drawSnow();   break;
-            case 'fog':     drawFog();    break;
-            case 'cloud':   drawClouds(); break;
+            case 'sun':       drawSun();    break;
+            case 'rain':      drawRain();   break;
+            case 'thunder':   drawRain();   drawLightning(); break;
+            case 'snow':      drawSnow();   break;
+            case 'fog':       drawFog();    break;
+            case 'cloud':     drawClouds(); break;
+            case 'moon':      drawStars();  drawMoon(); break;
+            case 'mooncloud': drawStars();  drawMoon(); drawNightClouds(); break;
         }
 
         animId = requestAnimationFrame(loop);

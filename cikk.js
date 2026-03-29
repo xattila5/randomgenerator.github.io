@@ -79,7 +79,7 @@ function extractParagraphs(html) {
 // DeepL: az összes bekezdés egyszerre – pontosabb kontextusértés
 // onProgress(done, total) – opcionális callback az előrehaladáshoz
 async function translateWithDeepL(texts, onProgress) {
-    if (!DEEPL_KEY?.trim()) throw new Error('nincs DeepL kulcs');
+    if (!IS_NETLIFY && !DEEPL_KEY?.trim()) throw new Error('nincs DeepL kulcs');
     if (deeplExhausted) throw new Error('DeepL keret elfogyott');
     // DeepL max 50 szöveg / kérés – ha több, feldaraboljuk
     const CHUNK = 50;
