@@ -1,8 +1,11 @@
-const CACHE = 'sal-v1';
+const CACHE = 'sal-v3';
 const PRECACHE = [
-  '/index.html', '/idojaras.html', '/hirek.html', '/cikk.html',
-  '/styles.css', '/nav.js', '/idojaras.js', '/hirek.js', '/cikk.js',
-  '/weather-canvas.js', '/icon.svg', '/manifest.json'
+  '/splash.html', '/index.html', '/idojaras.html', '/hirek.html',
+  '/cikk.html', '/befektetes.html', '/grafikon.html',
+  '/styles.css', '/effects.js', '/nav.js', '/script.js',
+  '/idojaras.js', '/hirek.js', '/cikk.js', '/befektetes.js', '/grafikon.js',
+  '/weather-canvas.js', '/notifications.js',
+  '/icon.svg', '/icon-maskable.svg', '/manifest.json', '/SAL_Logo.svg.svg'
 ];
 
 self.addEventListener('install', e => {

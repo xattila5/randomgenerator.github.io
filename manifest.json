@@ -2,7 +2,7 @@
   "name": "S.A.L. Tools",
   "short_name": "SAL Tools",
   "description": "Időjárás előrejelzés és friss hírek",
-  "start_url": "/idojaras.html",
+  "start_url": "/splash.html",
   "display": "standalone",
   "background_color": "#0e0e10",
   "theme_color": "#0e0e10",
