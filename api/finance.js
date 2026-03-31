@@ -62,14 +62,19 @@ async function tryYahooQuote(sym, host) {
 async function tryStooqQuote(sym) {
     const stooqSym = STOOQ_MAP[sym];
     if (!stooqSym) return null;
-    // f=sd2ohlcv : symbol, date, open, high, low, close, volume
     const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSym)}&f=sd2t2ohlcv&h&e=json`;
     const r   = await fetchT(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }, 4000);
     if (!r.ok) return null;
-    const data = await r.json();
-    const s    = data?.symbols?.[0];
+
+    // Stooq sometimes emits malformed JSON for futures: "volume":}
+    // Parse as text first, then fix any bare key with no value before , or }
+    const text  = await r.text();
+    const fixed = text.replace(/"([^"]+)":\s*([,}\]])/g, '"$1":null$2');
+    let data;
+    try { data = JSON.parse(fixed); } catch { return null; }
+
+    const s = data?.symbols?.[0];
     if (!s?.close) return null;
-    // Change: intraday open→close (best available without prev session close)
     const change = (s.open && s.close)
         ? ((s.close - s.open) / s.open * 100)
         : null;

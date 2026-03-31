@@ -239,14 +239,46 @@ async function fetchOHLCV() {
     return null;
 }
 
-// ── F rész: Grafikon rajzolás ────────────────────────────────────────────────
+// ── F rész: TradingView Advanced Chart fallback ──────────────────────────────
+function loadTVAdvancedChart(container) {
+    container.style.height = '520px';
+    container.style.borderRadius = '16px';
+    container.style.overflow = 'hidden';
+    const wrap = document.createElement('div');
+    wrap.className = 'tradingview-widget-container';
+    wrap.style.height = '100%';
+    const inner = document.createElement('div');
+    inner.className = 'tradingview-widget-container__widget';
+    inner.style.height = '100%';
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.async = true;
+    script.text = JSON.stringify({
+        autosize: true,
+        symbol: symbol,
+        interval: 'D',
+        timezone: 'Etc/UTC',
+        theme: 'dark',
+        style: '1',
+        locale: 'hu',
+        allow_symbol_change: false,
+        calendar: false,
+        support_host: 'https://www.tradingview.com',
+    });
+    wrap.appendChild(inner);
+    wrap.appendChild(script);
+    container.innerHTML = '';
+    container.appendChild(wrap);
+}
+
+// ── G rész: Grafikon rajzolás ────────────────────────────────────────────────
 async function initChart() {
     const container = document.getElementById('lwChart');
     if (!container || typeof LightweightCharts === 'undefined') return;
 
     const ohlcv = await fetchOHLCV();
     if (!ohlcv || ohlcv.length < 30) {
-        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-family:DM Mono,monospace;font-size:0.75rem">Grafikon adatok nem elérhetők</div>';
+        loadTVAdvancedChart(container);
         return;
     }
 
@@ -342,7 +374,7 @@ async function initChart() {
     renderTA(closes);
 }
 
-// ── G rész: TradingView TA widget ────────────────────────────────────────────
+// ── H rész: TradingView TA widget ────────────────────────────────────────────
 function loadWidget(containerId, src, config) {
     const container = document.getElementById(containerId);
     const script = document.createElement('script');
