@@ -161,8 +161,10 @@ function _applyNewsCard(el) {
     const idx = siblings.indexOf(el);
     const dir = idx % 2 === 0 ? 'reveal-left' : 'reveal-right';
     el.classList.add(dir);
-    _revObs.observe(el);
     _attachSpotlight(el);
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => { _revObs.observe(el); });
+    });
 }
 
 
@@ -171,10 +173,9 @@ function _apply(root) {
     // News cards: slide from sides
     _sel(root, '.news-card:not([data-fx])').forEach(_applyNewsCard);
 
-    // Asset cards: reveal up + spotlight (no tilt — conflicts with CSS hover)
+    // Asset cards: spotlight only — cardIn CSS animation handles reveal
     _sel(root, '.asset-card:not([data-fx])').forEach(el => {
         el.setAttribute('data-fx', '1');
-        _observeReveal(el);
         _attachSpotlight(el);
     });
 
