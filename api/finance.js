@@ -1,10 +1,13 @@
 /*
  * finance.js — Vercel API route
  *
- * Data sources (cascade per symbol):
- *   1. Yahoo Finance v8/chart  (query1)
- *   2. Yahoo Finance v8/chart  (query2)  ← different IP pool
- *   3. Stooq daily CSV                   ← fallback, cloud-friendly
+ * Yahoo Finance blocks some cloud-provider IPs.
+ * Key fix: AbortController timeouts prevent Vercel function timeout.
+ *
+ * Cascade:
+ *   quotes  : Yahoo query1 (3s) → Yahoo query2 (3s) → Stooq JSON
+ *   history : Yahoo query1 (6s) → Yahoo query2 (6s) → 502 error
+ *   search  : Yahoo query1 only
  */
 
 const YF_HEADERS = {
@@ -14,7 +17,7 @@ const YF_HEADERS = {
     'Referer': 'https://finance.yahoo.com/',
 };
 
-// Yahoo symbol → Stooq symbol
+// Yahoo symbol → Stooq symbol (single-symbol JSON quote endpoint)
 const STOOQ_MAP = {
     'GC=F':  'gc.f',
     'SI=F':  'si.f',
@@ -25,18 +28,29 @@ const STOOQ_MAP = {
     'FCX':   'fcx.us',
 };
 
-/* ── Try Yahoo Finance v8/chart on a given host ──────────── */
-async function tryYahoo(sym, host) {
+/* ── Fetch with AbortController timeout ─────────────────── */
+async function fetchT(url, options, ms) {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    try {
+        const r = await fetch(url, { ...options, signal: ctrl.signal });
+        clearTimeout(timer);
+        return r;
+    } catch (e) {
+        clearTimeout(timer);
+        throw e;
+    }
+}
+
+/* ── Yahoo Finance: single-symbol quote ─────────────────── */
+async function tryYahooQuote(sym, host) {
     const url = `https://${host}/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`;
-    const r   = await fetch(url, { headers: YF_HEADERS });
+    const r   = await fetchT(url, { headers: YF_HEADERS }, 3000);
     if (!r.ok) return null;
-    const data  = await r.json();
-    const meta  = data?.chart?.result?.[0]?.meta;
+    const meta  = (await r.json())?.chart?.result?.[0]?.meta;
     const price = meta?.regularMarketPrice ?? null;
     if (!price) return null;
-    const prev  = meta.chartPreviousClose
-               ?? meta.regularMarketPreviousClose
-               ?? null;
+    const prev = meta.chartPreviousClose ?? meta.regularMarketPreviousClose ?? null;
     return {
         symbol: sym,
         regularMarketPrice: price,
@@ -44,55 +58,52 @@ async function tryYahoo(sym, host) {
     };
 }
 
-/* ── Stooq daily CSV fallback ────────────────────────────── */
-async function tryStooq(sym) {
+/* ── Stooq JSON: single-symbol quote (no prev close) ────── */
+async function tryStooqQuote(sym) {
     const stooqSym = STOOQ_MAP[sym];
     if (!stooqSym) return null;
-
-    const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSym)}&i=d&l=3`;
-    const r   = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible)', 'Accept': 'text/csv' },
-    });
+    // f=sd2ohlcv : symbol, date, open, high, low, close, volume
+    const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSym)}&f=sd2t2ohlcv&h&e=json`;
+    const r   = await fetchT(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }, 4000);
     if (!r.ok) return null;
-
-    const text  = await r.text();
-    const rows  = text.trim().split('\n').filter(l => !/^Date/i.test(l) && l.trim());
-    if (rows.length < 1) return null;
-
-    const latest   = rows[rows.length - 1].split(',');
-    const previous = rows.length >= 2 ? rows[rows.length - 2].split(',') : null;
-
-    const close    = parseFloat(latest[4]);
-    const prevClose = previous ? parseFloat(previous[4]) : null;
-
-    if (isNaN(close)) return null;
-
+    const data = await r.json();
+    const s    = data?.symbols?.[0];
+    if (!s?.close) return null;
+    // Change: intraday open→close (best available without prev session close)
+    const change = (s.open && s.close)
+        ? ((s.close - s.open) / s.open * 100)
+        : null;
     return {
         symbol: sym,
-        regularMarketPrice: close,
-        regularMarketChangePercent: (prevClose && !isNaN(prevClose))
-            ? ((close - prevClose) / prevClose * 100)
-            : null,
+        regularMarketPrice: s.close,
+        regularMarketChangePercent: change,
     };
 }
 
-/* ── Fetch one symbol: Yahoo → Yahoo query2 → Stooq ─────── */
+/* ── Yahoo Finance: historical chart ────────────────────── */
+async function tryYahooHistory(sym, host) {
+    const url = `https://${host}/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=6mo`;
+    const r   = await fetchT(url, { headers: YF_HEADERS }, 6000);
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (!data?.chart?.result?.[0]?.timestamp?.length) return null;
+    return data;
+}
+
+/* ── Fetch one quote: Yahoo q1 → Yahoo q2 → Stooq ──────── */
 async function fetchQuote(sym) {
-    try {
-        const q1 = await tryYahoo(sym, 'query1.finance.yahoo.com');
-        if (q1) return q1;
-    } catch {}
+    for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
+        try { const r = await tryYahooQuote(sym, host); if (r) return r; } catch {}
+    }
+    try { const r = await tryStooqQuote(sym); if (r) return r; } catch {}
+    return null;
+}
 
-    try {
-        const q2 = await tryYahoo(sym, 'query2.finance.yahoo.com');
-        if (q2) return q2;
-    } catch {}
-
-    try {
-        const sq = await tryStooq(sym);
-        if (sq) return sq;
-    } catch {}
-
+/* ── Fetch history: Yahoo q1 → Yahoo q2 ────────────────── */
+async function fetchHistory(sym) {
+    for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
+        try { const r = await tryYahooHistory(sym, host); if (r) return r; } catch {}
+    }
     return null;
 }
 
@@ -104,28 +115,22 @@ export default async function handler(req, res) {
     const { symbols, search, history } = req.query;
 
     try {
-        // ── Multi-symbol quotes ──
         if (symbols) {
             const syms    = symbols.split(',').map(s => s.trim()).filter(Boolean);
             const results = await Promise.all(syms.map(fetchQuote));
-            return res.status(200).json({
-                quoteResponse: { result: results.filter(Boolean) }
-            });
+            return res.status(200).json({ quoteResponse: { result: results.filter(Boolean) } });
         }
 
-        // ── Search ──
+        if (history) {
+            const data = await fetchHistory(history);
+            if (!data) return res.status(502).json({ error: 'Minden adatforrás elérhetetlen' });
+            return res.status(200).json(data);
+        }
+
         if (search) {
             const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(search)}&quotesCount=8&newsCount=0&listsCount=0`;
-            const r   = await fetch(url, { headers: YF_HEADERS });
+            const r   = await fetchT(url, { headers: YF_HEADERS }, 5000);
             if (!r.ok) return res.status(r.status).json({ error: 'search error' });
-            return res.status(200).json(await r.json());
-        }
-
-        // ── Historical chart ──
-        if (history) {
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(history)}?interval=1d&range=6mo`;
-            const r   = await fetch(url, { headers: YF_HEADERS });
-            if (!r.ok) return res.status(r.status).json({ error: 'history error' });
             return res.status(200).json(await r.json());
         }
 
