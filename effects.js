@@ -122,11 +122,13 @@ function _attachRipple(el) {
 }
 
 
-// ── 7. Counter-up for price numbers ─────────────────────
+// ── 7. Counter-up for price numbers (prefix preserved) ───
 function _animateCounter(el) {
     if (el._sal_counted) return;
-    const raw = el.textContent.replace(/[$,\s]/g, '');
-    const num = parseFloat(raw);
+    const text   = el.textContent;
+    const prefix = text.match(/^[^0-9]*/)?.[0] ?? '';   // e.g. '$'
+    const raw    = text.replace(/[^0-9.]/g, '');
+    const num    = parseFloat(raw);
     if (isNaN(num) || num === 0) return;
     el._sal_counted = true;
 
@@ -135,17 +137,16 @@ function _animateCounter(el) {
     const from     = num * 0.6;
     const decimals = raw.includes('.') ? (raw.split('.')[1] || '').length : 0;
 
+    const fmt = v => prefix + (num >= 1000
+        ? v.toLocaleString('en-US', { maximumFractionDigits: 0 })
+        : v.toFixed(decimals));
+
     (function step(now) {
         const t   = Math.min((now - start) / dur, 1);
         const eas = 1 - Math.pow(1 - t, 3);
-        const val = from + (num - from) * eas;
-        el.textContent = num >= 1000
-            ? val.toLocaleString('en-US', { maximumFractionDigits: 0 })
-            : val.toFixed(decimals);
+        el.textContent = fmt(from + (num - from) * eas);
         if (t < 1) requestAnimationFrame(step);
-        else el.textContent = num >= 1000
-            ? num.toLocaleString('en-US', { maximumFractionDigits: 0 })
-            : num.toFixed(decimals);
+        else el.textContent = fmt(num);
     })(start);
 }
 
@@ -170,12 +171,11 @@ function _apply(root) {
     // News cards: slide from sides
     _sel(root, '.news-card:not([data-fx])').forEach(_applyNewsCard);
 
-    // Asset cards: reveal up + spotlight + tilt
+    // Asset cards: reveal up + spotlight (no tilt — conflicts with CSS hover)
     _sel(root, '.asset-card:not([data-fx])').forEach(el => {
         el.setAttribute('data-fx', '1');
         _observeReveal(el);
         _attachSpotlight(el);
-        _attachTilt(el);
     });
 
     // Weather day cards: reveal up + spotlight + tilt
@@ -222,3 +222,9 @@ new MutationObserver(muts => {
         if (n.nodeType === 1) _apply(n);
     }));
 }).observe(document.body, { childList: true, subtree: true });
+
+// ── 11. Fallback: ensure nothing stays invisible ─────────
+setTimeout(() => {
+    document.querySelectorAll('.reveal:not(.visible), .reveal-left:not(.visible), .reveal-right:not(.visible)')
+        .forEach(el => el.classList.add('visible'));
+}, 4000);

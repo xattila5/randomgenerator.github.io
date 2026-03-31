@@ -3,5 +3,8 @@
     "api/*.js": {
       "maxDuration": 10
     }
-  }
+  },
+  "redirects": [
+    { "source": "/", "destination": "/splash.html", "permanent": false }
+  ]
 }
