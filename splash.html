@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S.A.L. Tools</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+        width: 100%; height: 100%;
+        background: #0a0a0c;
+        overflow: hidden;
+        font-family: 'Syne', sans-serif;
+    }
+
+    #scene {
+        position: fixed; inset: 0; z-index: 1;
+    }
+
+    #svgSpokes {
+        position: absolute; inset: 0;
+        width: 100%; height: 100%;
+        overflow: visible;
+        pointer-events: none;
+    }
+
+    /* ── Logo ─────────────────────────────────────── */
+    #logoWrap {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        opacity: 0;
+        z-index: 5;
+        pointer-events: none;
+    }
+
+    .s-logo-inner {
+        position: relative;
+        width: 220px; height: 220px;
+    }
+
+    #sLogo {
+        width: 100%; height: 100%; display: block;
+        transition: filter 1.6s ease;
+    }
+    #sLogo.glow {
+        filter:
+            drop-shadow(0 0 48px rgba(184,154,90,0.6))
+            drop-shadow(0 0 18px rgba(184,154,90,0.4));
+    }
+
+    .s-ring {
+        position: absolute; inset: -20px;
+        border-radius: 50%;
+        border: 1px solid transparent;
+        transition: border-color 1.6s ease, box-shadow 1.6s ease;
+    }
+    .s-ring.on {
+        border-color: rgba(184,154,90,0.18);
+        box-shadow: 0 0 60px rgba(184,154,90,0.06), inset 0 0 60px rgba(184,154,90,0.03);
+    }
+
+    .s-ring-svg {
+        position: absolute; inset: -34px;
+        width: calc(100% + 68px); height: calc(100% + 68px);
+        opacity: 0; transition: opacity 1.4s ease;
+        animation: rot 20s linear infinite;
+    }
+    .s-ring-svg.on { opacity: 1; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+
+    .s-logo-name {
+        font-size: 0.62rem; font-weight: 700;
+        letter-spacing: 0.55em; text-transform: uppercase;
+        color: rgba(184,154,90,0.55);
+        text-shadow: 0 0 28px rgba(184,154,90,0.18);
+    }
+
+    /* ── Nav nodes ────────────────────────────────── */
+    .nav-node {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        display: flex; flex-direction: column;
+        align-items: center; gap: 7px;
+        cursor: pointer; text-decoration: none;
+        opacity: 0; z-index: 5; padding: 10px;
+        transition: transform 0.22s ease;
+    }
+    .nav-node:hover { transform: translate(-50%, -50%) scale(1.12); }
+
+    .nav-icon  { font-size: 1.45rem; line-height: 1; }
+    .nav-label {
+        font-size: 0.58rem; font-weight: 700;
+        letter-spacing: 0.1em; text-transform: uppercase;
+        color: rgba(240,240,240,0.55); white-space: nowrap;
+        transition: color 0.2s;
+    }
+    .nav-node:hover .nav-label { color: rgba(240,240,240,0.92); }
+
+    /* ── Smoke canvas ─────────────────────────────── */
+    #smokeCanvas { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+
+    #sHint {
+        position: fixed; bottom: 28px; left: 50%;
+        transform: translateX(-50%);
+        font-family: 'DM Mono', monospace; font-size: 0.53rem;
+        letter-spacing: 0.22em; text-transform: uppercase;
+        color: rgba(255,255,255,0.15); z-index: 5;
+        opacity: 0; transition: opacity 1.4s ease; white-space: nowrap; pointer-events: none;
+    }
+    #sHint.on { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div id="scene">
+    <svg id="svgSpokes" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <filter id="lg" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+        </defs>
+    </svg>
+
+    <div id="logoWrap">
+        <div class="s-logo-inner">
+            <img id="sLogo" src="SAL_Logo.svg.svg" alt="SAL">
+            <div class="s-ring" id="sRing"></div>
+            <svg class="s-ring-svg" viewBox="0 0 270 270">
+                <circle cx="135" cy="135" r="127" fill="none"
+                    stroke="rgba(184,154,90,0.2)" stroke-width="0.7"
+                    stroke-dasharray="3 12" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="s-logo-name">S.A.L. Tools</div>
+    </div>
+</div>
+
+<div id="sHint">válassz oldalt</div>
+<canvas id="smokeCanvas"></canvas>
+
+<script>
+(function () {
+'use strict';
+
+const canvas   = document.getElementById('smokeCanvas');
+const ctx      = canvas.getContext('2d');
+const scene    = document.getElementById('scene');
+const logoWrap = document.getElementById('logoWrap');
+const logo     = document.getElementById('sLogo');
+const sRing    = document.getElementById('sRing');
+const sRingSvg = document.querySelector('.s-ring-svg');
+const svgEl    = document.getElementById('svgSpokes');
+const hint     = document.getElementById('sHint');
+
+/* ── Offscreen canvas for blur compositing ──────── */
+const off    = document.createElement('canvas');
+const offCtx = off.getContext('2d');
+
+let W, H, CX, CY;
+
+/* ── Navigation nodes — right to left draw order ── */
+const NODES = [
+    { name: 'Befektetés', icon: '📈', url: 'befektetes.html', dx: +310, dy: +48  },
+    { name: 'Hírek',      icon: '📰', url: 'hirek.html',      dx: +182, dy: -218 },
+    { name: 'Időjárás',   icon: '🌤️', url: 'idojaras.html',   dx: -182, dy: +218 },
+    { name: 'Random Gen', icon: '⚙️', url: 'index.html',      dx: -310, dy: -48  },
+];
+
+const nodeEls   = [];
+const spokeData = [];
+let spokesTriggered = false;
+let glowDone        = false;
+
+/* ── Build spokes + labels ───────────────────────── */
+function buildLayout() {
+    nodeEls.forEach(el => el.remove());
+    nodeEls.length = 0;
+    spokeData.length = 0;
+    while (svgEl.children.length > 1) svgEl.removeChild(svgEl.lastChild);
+    spokesTriggered = false;
+    glowDone = false;
+
+    const maxDx = Math.max(...NODES.map(n => Math.abs(n.dx)));
+    const maxDy = Math.max(...NODES.map(n => Math.abs(n.dy)));
+    const sc = Math.min(1, (W * 0.38) / maxDx, (H * 0.40) / maxDy);
+
+    NODES.forEach((node, i) => {
+        const dx  = node.dx * sc;
+        const dy  = node.dy * sc;
+        /* Spoke ends at 85% — label lives beyond that */
+        const spokeEndX = CX + dx * 0.85;
+        const spokeEndY = CY + dy * 0.85;
+        const labelX    = CX + dx * 1.0;
+        const labelY    = CY + dy * 1.0;
+        const len = Math.hypot(dx * 0.85, dy * 0.85);
+
+        /* Spoke line (center → 85% of full distance) */
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', CX);        line.setAttribute('y1', CY);
+        line.setAttribute('x2', spokeEndX); line.setAttribute('y2', spokeEndY);
+        line.setAttribute('stroke', 'rgba(184,154,90,0.48)');
+        line.setAttribute('stroke-width', '1');
+        line.setAttribute('stroke-dasharray', len);
+        line.setAttribute('stroke-dashoffset', len);
+        line.setAttribute('filter', 'url(#lg)');
+        svgEl.appendChild(line);
+        spokeData.push({ line, len });
+
+        /* Nav label — positioned beyond spoke end */
+        const a = document.createElement('a');
+        a.className = 'nav-node';
+        a.href = node.url;
+        a.style.left = labelX + 'px';
+        a.style.top  = labelY + 'px';
+        a.innerHTML  = `
+            <span class="nav-icon">${node.icon}</span>
+            <span class="nav-label">${node.name}</span>
+        `;
+        scene.appendChild(a);
+        nodeEls.push(a);
+    });
+}
+
+/* ── Animate spokes right → left ─────────────────── */
+function triggerSpokes() {
+    spokesTriggered = true;
+    spokeData.forEach((sp, i) => {
+        setTimeout(() => {
+            sp.line.style.transition = 'stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)';
+            sp.line.style.strokeDashoffset = '0';
+            setTimeout(() => {
+                nodeEls[i].style.transition = 'opacity 0.5s ease, transform 0.25s ease';
+                nodeEls[i].style.opacity = '1';
+                if (i === 0 && !glowDone) {
+                    glowDone = true;
+                    logo.classList.add('glow');
+                    sRing.classList.add('on');
+                    sRingSvg.classList.add('on');
+                }
+            }, 800);
+        }, i * 240);
+    });
+    const totalMs = (spokeData.length - 1) * 240 + 800 + 700;
+    setTimeout(() => hint.classList.add('on'), totalMs);
+}
+
+/* ─────────────────────────────────────────────────────
+   REALISTIC SMOKE SYSTEM
+   ─────────────────────────────────────────────────────
+   Two layers rendered to an offscreen canvas, then
+   composited to main canvas with ctx.filter blur.
+
+   Layer A — large billowing masses  (slow, big)
+   Layer B — medium swirling wisps   (faster, small)
+   Each frame: semi-transparent BG fill creates natural
+   trailing persistence. Noise-driven velocity gives
+   organic turbulence.
+   ───────────────────────────────────────────────────── */
+
+function mkParticle(large) {
+    /* Visible grey smoke with slight warm/cool variation */
+    const b  = 55 + Math.floor(Math.random() * 50);   /* 55–105 grey range */
+    const rw = Math.floor(Math.random() * 10) - 3;    /* slight warm/cool shift */
+    const col = `${b + rw},${b},${Math.max(0, b - 4)}`;
+
+    return {
+        x:      -30 + Math.random() * 55,
+        y:       H  * (0.04 + Math.random() * 0.92),
+        r:       large ? (140 + Math.random() * 130) : (45 + Math.random() * 80),
+        vx:      large ? (0.45 + Math.random() * 1.0) : (0.9 + Math.random() * 2.2),
+        vy:      (Math.random() - 0.5) * 0.55,
+        op:      0,
+        mop:     large ? (0.28 + Math.random() * 0.38) : (0.18 + Math.random() * 0.35),
+        grow:    large ? 0.38 : 0.16,
+        /* Per-particle noise seeds for organic turbulence */
+        nx:      Math.random() * 500,
+        ny:      Math.random() * 500,
+        col,
+        ok:      true,
+    };
+}
+
+const partsA = [];   /* large billowing clouds */
+const partsB = [];   /* wispy tendrils */
+
+function preSeed() {
+    for (let i = 0; i < 10; i++) {
+        const p = mkParticle(true);
+        p.x = W * Math.random() * 0.1; p.op = 0.04 + Math.random() * 0.14;
+        partsA.push(p);
+    }
+    for (let i = 0; i < 14; i++) {
+        const p = mkParticle(false);
+        p.x = W * Math.random() * 0.12; p.op = 0.03 + Math.random() * 0.1;
+        partsB.push(p);
+    }
+}
+
+function drawParticle(c, p) {
+    if (p.op <= 0.005) return;
+    const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+    const o = p.op;
+    g.addColorStop(0,    `rgba(${p.col},${o.toFixed(3)})`);
+    g.addColorStop(0.25, `rgba(${p.col},${(o * 0.78).toFixed(3)})`);
+    g.addColorStop(0.6,  `rgba(${p.col},${(o * 0.32).toFixed(3)})`);
+    g.addColorStop(1,    `rgba(${p.col},0)`);
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    c.fill();
+}
+
+function updateParticle(p, clearing, clearT, t) {
+    /* Noise-driven turbulence — each particle oscillates uniquely */
+    p.vx += Math.sin(p.nx + t * 0.65) * 0.007;
+    p.vy += Math.cos(p.ny + t * 0.80) * 0.013;
+    p.vy *= 0.999;
+    p.x  += p.vx;
+    p.y  += p.vy;
+    p.r  += p.grow;
+
+    if (!clearing) {
+        p.op = Math.min(p.mop, p.op + 0.010);
+    } else {
+        p.vy -= 0.016 + clearT * 0.016;   /* drift upward */
+        p.vx += (p.vx >= 0 ? 1 : -1) * 0.003;
+        p.op -= 0.005 + clearT * 0.014;
+        if (p.op <= 0) p.ok = false;
+    }
+}
+
+/* ── Timing ──────────────────────────────────────── */
+const T_SWEEP = 3600;
+const T_CLEAR = 2600;
+const T_TOTAL = T_SWEEP + T_CLEAR;
+
+let t0 = null;
+let lastSpawnA = 0, lastSpawnB = 0;
+
+/* ── Smooth-step ─────────────────────────────────── */
+function ss(x, lo, hi) {
+    const t = Math.max(0, Math.min(1, (x - lo) / (hi - lo)));
+    return t * t * (3 - 2 * t);
+}
+
+/* ── Main render ─────────────────────────────────── */
+function frame(ts) {
+    if (!t0) t0 = ts;
+    const el       = ts - t0;
+    const t        = el * 0.001;          /* seconds */
+    const clearing = el > T_SWEEP;
+    const clearT   = clearing ? Math.min(1, (el - T_SWEEP) / T_CLEAR) : 0;
+
+    /* ── Main canvas background ───────────────────── */
+    if (!clearing) {
+        ctx.fillStyle = el < 24 ? '#0a0a0c' : 'rgba(10,10,12,0.10)';
+        ctx.fillRect(0, 0, W, H);
+    } else {
+        ctx.clearRect(0, 0, W, H);
+        const ba = Math.max(0, 1 - clearT * 1.15);
+        if (ba > 0) { ctx.fillStyle = `rgba(10,10,12,${ba.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
+    }
+
+    /* ── Spawn ────────────────────────────────────── */
+    if (!clearing) {
+        if (el - lastSpawnA > 130 && partsA.length < 32) { lastSpawnA = el; partsA.push(mkParticle(true));  }
+        if (el - lastSpawnB > 70  && partsB.length < 52) { lastSpawnB = el; partsB.push(mkParticle(false)); }
+    }
+
+    /* ── Render Layer A — large clouds with heavy blur */
+    offCtx.clearRect(0, 0, W, H);
+    /* Persistent trail in offscreen too */
+    offCtx.fillStyle = clearing ? 'rgba(0,0,0,0)' : 'rgba(10,10,12,0.06)';
+    if (!clearing) offCtx.fillRect(0, 0, W, H);
+
+    let smokeFront = 0;
+
+    for (let i = partsA.length - 1; i >= 0; i--) {
+        const p = partsA[i];
+        updateParticle(p, clearing, clearT, t);
+        if (!p.ok) { partsA.splice(i, 1); continue; }
+        if (p.op > 0.08) smokeFront = Math.max(smokeFront, p.x + p.r * 0.55);
+        drawParticle(offCtx, p);
+    }
+
+    ctx.save();
+    ctx.filter = 'blur(18px)';
+    ctx.drawImage(off, 0, 0);
+    ctx.restore();
+
+    /* ── Render Layer B — wisps with lighter blur ─── */
+    offCtx.clearRect(0, 0, W, H);
+
+    for (let i = partsB.length - 1; i >= 0; i--) {
+        const p = partsB[i];
+        updateParticle(p, clearing, clearT, t);
+        if (!p.ok) { partsB.splice(i, 1); continue; }
+        if (p.op > 0.06) smokeFront = Math.max(smokeFront, p.x + p.r * 0.45);
+        drawParticle(offCtx, p);
+    }
+
+    ctx.save();
+    ctx.filter = 'blur(7px)';
+    ctx.drawImage(off, 0, 0);
+    ctx.restore();
+
+    /* ── Reveal logo as smoke front passes center ─── */
+    if (!clearing) {
+        const rev = ss(smokeFront, CX - 100, CX + 80);
+        logoWrap.style.opacity = rev.toFixed(3);
+        if (rev > 0.5 && !spokesTriggered) triggerSpokes();
+    } else {
+        logoWrap.style.opacity = '1';
+    }
+
+    if (el < T_TOTAL) requestAnimationFrame(frame);
+}
+
+/* ── Init ────────────────────────────────────────── */
+function init() {
+    W = canvas.width  = off.width  = window.innerWidth;
+    H = canvas.height = off.height = window.innerHeight;
+    CX = W / 2; CY = H / 2;
+    buildLayout();
+    preSeed();
+    requestAnimationFrame(frame);
+}
+
+window.addEventListener('resize', () => {
+    W = canvas.width  = off.width  = window.innerWidth;
+    H = canvas.height = off.height = window.innerHeight;
+    CX = W / 2; CY = H / 2;
+});
+
+init();
+})();
+</script>
+</body>
+</html>

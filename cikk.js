@@ -4,12 +4,14 @@ const IS_NETLIFY = window.location.hostname !== 'localhost' &&
                    !window.location.protocol.startsWith('file');
 const DEEPL_KEY  = (typeof SAL_CONFIG !== 'undefined') ? SAL_CONFIG.DEEPL_KEY : '';
 
-let article         = null;
-let currentLang     = 'en';
-let translatedTitle = '';
-let translatedPars  = [];
-let paragraphs      = [];   // angol bekezdések – fordítás alapja
-let deeplExhausted  = false;
+let article           = null;
+let currentLang       = 'en';
+let translatedTitle   = '';
+let translatedPars    = [];
+let translatedHtmlPars = [];  // HTML-megőrző fordítás (linkek, bold, stb.)
+let paragraphs        = [];   // angol szöveg bekezdések – fordítás alapja
+let paragraphNodes    = [];   // {tag, html, text} – HTML-aware fordításhoz
+let deeplExhausted    = false;
 
 /* ── Napi fordítási cache (localStorage) ─────────────── */
 
@@ -66,26 +68,34 @@ function formatDate(dateStr) {
 
 /* ── Bekezdések kinyerése a Guardian HTML-ből ────────── */
 // A <p>, <h2>, <h3> elemeket szeparálja – ezek mennek fordításra
-function extractParagraphs(html) {
+// Visszaad: [{tag, html, text}] – HTML megőrzésével
+function extractParagraphNodes(html) {
     if (!html) return [];
     const doc = new DOMParser().parseFromString(html, 'text/html');
     return [...doc.querySelectorAll('p, h2, h3')]
-        .map(el => el.textContent.trim())
-        .filter(t => t.length > 20);
+        .map(el => ({
+            tag:  el.tagName.toLowerCase(),
+            html: el.innerHTML,
+            text: el.textContent.trim()
+        }))
+        .filter(n => n.text.length > 20);
 }
 
 /* ── Fordítás ────────────────────────────────────────── */
 
 // DeepL: az összes bekezdés egyszerre – pontosabb kontextusértés
 // onProgress(done, total) – opcionális callback az előrehaladáshoz
-async function translateWithDeepL(texts, onProgress) {
+// isHtml = true → tag_handling: 'html' (megőrzi a <a>, <strong> stb.)
+async function translateWithDeepL(texts, onProgress, isHtml = false) {
     if (!IS_NETLIFY && !DEEPL_KEY?.trim()) throw new Error('nincs DeepL kulcs');
     if (deeplExhausted) throw new Error('DeepL keret elfogyott');
     // DeepL max 50 szöveg / kérés – ha több, feldaraboljuk
     const CHUNK = 50;
     const all   = [];
     for (let i = 0; i < texts.length; i += CHUNK) {
-        const deeplBody = JSON.stringify({ text: texts.slice(i, i + CHUNK), target_lang: 'HU', source_lang: 'EN' });
+        const payload = { text: texts.slice(i, i + CHUNK), target_lang: 'HU', source_lang: 'EN' };
+        if (isHtml) payload.tag_handling = 'html';
+        const deeplBody = JSON.stringify(payload);
         const deeplReq  = IS_NETLIFY
             ? fetch('/api/deepl', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: deeplBody })
             : fetch('https://api-free.deepl.com/v2/translate', {
@@ -143,18 +153,21 @@ async function translateWithMyMemory(text) {
 
 // Tömbös fordítás: DeepL egyszerre mindent, ha nem megy → Google egyenként
 // onProgress(done, total) – callback az előrehaladáshoz
-async function translateBatch(texts, onProgress) {
+// isHtml = true → DeepL HTML-módban (Google fallback esetén sima szöveg lesz)
+async function translateBatch(texts, onProgress, isHtml = false) {
     if (!texts.length) return [];
     try {
-        return await translateWithDeepL(texts, onProgress);
+        return await translateWithDeepL(texts, onProgress, isHtml);
     } catch (deeplErr) {
         console.warn('DeepL nem elérhető, Google Translate fallback:', deeplErr.message);
     }
     // Google: 3-asával párhuzamosan, 300ms szünet (rate limit elkerülés)
+    // Google fallback esetén HTML tageket lecsupaszítjuk, sima szöveget fordítunk
+    const plainTexts = isHtml ? texts.map(t => stripHtml(t)) : texts;
     const result = [];
-    for (let i = 0; i < texts.length; i += 3) {
+    for (let i = 0; i < plainTexts.length; i += 3) {
         const batch = await Promise.all(
-            texts.slice(i, i + 3).map(t =>
+            plainTexts.slice(i, i + 3).map(t =>
                 translateWithGoogle(t)
                     .catch(() => translateWithMyMemory(t))
                     .catch(() => t)
@@ -210,8 +223,30 @@ function renderEnglish() {
 function renderHungarian() {
     renderMeta(translatedTitle || article.title);
     const content = document.getElementById('artContent');
-    if (translatedPars.length) {
-        content.innerHTML = translatedPars.map(p => `<p>${esc(p)}</p>`).join('');
+
+    // Ha HTML-megőrző fordítás elérhető → kétnyelvű nézet (EN szürke + HU normál)
+    if (translatedHtmlPars.length) {
+        content.innerHTML = translatedHtmlPars.map((transHtml, i) => {
+            const node = paragraphNodes[i];
+            const tag  = node ? node.tag : 'p';
+            const orig = node ? node.html : (paragraphs[i] ? esc(paragraphs[i]) : '');
+            return `<div class="bilingual-block">
+                <${tag} class="original-en">${orig}</${tag}>
+                <${tag} class="translated-hu">${transHtml}</${tag}>
+            </div>`;
+        }).join('');
+        content.querySelectorAll('a').forEach(a => {
+            a.target = '_blank'; a.rel = 'noopener noreferrer';
+        });
+    } else if (translatedPars.length) {
+        // Fallback (Google): kétnyelvű, de sima szöveg
+        content.innerHTML = translatedPars.map((p, i) => {
+            const orig = paragraphs[i] || '';
+            return `<div class="bilingual-block">
+                <p class="original-en">${esc(orig)}</p>
+                <p class="translated-hu">${esc(p)}</p>
+            </div>`;
+        }).join('');
     } else {
         content.innerHTML = '<p class="art-placeholder">Fordítás folyamatban…</p>';
     }
@@ -239,8 +274,9 @@ async function runTranslation() {
     const cacheKey = getCacheKey(article.url);
     if (cacheKey && cache[cacheKey]) {
         const saved = cache[cacheKey];
-        translatedTitle = saved.title || article.title;
-        translatedPars  = saved.pars  || [];
+        translatedTitle    = saved.title    || article.title;
+        translatedPars     = saved.pars     || [];
+        translatedHtmlPars = saved.htmlPars || [];
         return;
     }
 
@@ -251,20 +287,37 @@ async function runTranslation() {
         setStatus(`AI fordítás folyamatban… (${done} / ${total} bekezdés)`);
     };
 
-    // Cím + összes bekezdés egyszerre DeepL-lel (vagy Google fallbackkel)
+    // HTML-megőrző fordítás: cím (sima szöveg) + bekezdések innerHTML-je (HTML-módban)
     try {
-        const all     = [article.title, ...paragraphs];
-        const results = await translateBatch(all, onProgress);
-        translatedTitle = results[0] || article.title;
-        translatedPars  = results.slice(1);
+        // Cím: sima szöveg
+        const [titleResult] = await translateBatch([article.title], null, false);
+        translatedTitle = titleResult || article.title;
+
+        // Bekezdések: HTML-módban (megőrzi linkeket, bold, stb.)
+        const htmlTexts = paragraphNodes.map(n => n.html);
+        if (htmlTexts.length) {
+            const htmlResults = await translateBatch(htmlTexts, onProgress, true);
+            translatedHtmlPars = htmlResults;
+            translatedPars     = htmlResults.map(h => stripHtml(h));
+        }
     } catch {
-        translatedTitle = article.title;
-        translatedPars  = [...paragraphs];
+        // Végső fallback: sima szöveges fordítás
+        try {
+            const all     = [article.title, ...paragraphs];
+            const results = await translateBatch(all, onProgress, false);
+            translatedTitle    = results[0] || article.title;
+            translatedPars     = results.slice(1);
+            translatedHtmlPars = [];
+        } catch {
+            translatedTitle    = article.title;
+            translatedPars     = [...paragraphs];
+            translatedHtmlPars = [];
+        }
     }
 
-    // Cache mentés
+    // Cache mentés (htmlPars-t is tároljuk)
     if (cacheKey) {
-        cache[cacheKey] = { title: translatedTitle, pars: translatedPars };
+        cache[cacheKey] = { title: translatedTitle, pars: translatedPars, htmlPars: translatedHtmlPars };
         saveArticleCache(cache);
     }
 
@@ -289,17 +342,20 @@ async function init() {
         return;
     }
 
-    // Bekezdések kinyerése fordításhoz – a <p>/<h2>/<h3> elemekből, nem stripHtml-ből
+    // Bekezdések kinyerése fordításhoz – a <p>/<h2>/<h3> elemekből, HTML-megőrzéssel
     if (article.fullHtml) {
-        paragraphs = extractParagraphs(article.fullHtml);
+        paragraphNodes = extractParagraphNodes(article.fullHtml);
+        paragraphs     = paragraphNodes.map(n => n.text);
     } else if (article.fullText) {
-        // Fallback: mondatonkénti darabolás
+        // Fallback: mondatonkénti darabolás (nincs HTML)
         paragraphs = article.fullText
             .split(/(?<=[.!?])\s{1,3}(?=[A-Z])/)
             .map(s => s.trim())
             .filter(s => s.length > 20);
+        paragraphNodes = paragraphs.map(t => ({ tag: 'p', html: esc(t), text: t }));
     } else if (article.description) {
-        paragraphs = [article.description];
+        paragraphs     = [article.description];
+        paragraphNodes = [{ tag: 'p', html: esc(article.description), text: article.description }];
     }
 
     renderEnglish();

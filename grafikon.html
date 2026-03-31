@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Random Szöveg Generátor</title>
+    <title>Grafikon – S.A.L. Tools</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@900&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
     <link rel="icon" href="icon.svg" type="image/svg+xml">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0e0e10">
@@ -15,7 +16,7 @@
     <meta name="apple-mobile-web-app-title" content="SAL Tools">
     <link rel="apple-touch-icon" href="icon.svg">
 </head>
-<body>
+<body class="news-body">
     <div class="app">
         <header>
             <div class="logo-group">
@@ -23,13 +24,12 @@
                     <svg viewBox="0 0 18 18" width="18" height="18"><path d="M2 4h14v2H2zm0 4h10v2H2zm0 4h12v2H2z" fill="#0e0e10"/></svg>
                 </button>
                 <div class="nav-dropdown" id="navDropdown">
-                    <a href="index.html" class="nav-link active"><span class="nav-link-icon"><svg viewBox="0 0 16 16" width="15" height="15" fill="none"><rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="7" width="10" height="2" rx="1" fill="currentColor"/><rect x="1" y="12" width="12" height="2" rx="1" fill="currentColor"/></svg></span>Random Generator</a>
+                    <a href="index.html" class="nav-link"><span class="nav-link-icon"><svg viewBox="0 0 16 16" width="15" height="15" fill="none"><rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="7" width="10" height="2" rx="1" fill="currentColor"/><rect x="1" y="12" width="12" height="2" rx="1" fill="currentColor"/></svg></span>Random Generator</a>
                     <a href="idojaras.html" class="nav-link"><span class="nav-link-icon">🌤️</span>Időjárás</a>
                     <a href="hirek.html" class="nav-link"><span class="nav-link-icon">📰</span>Hírek</a>
                     <a href="befektetes.html" class="nav-link"><span class="nav-link-icon">📈</span>Befektetés</a>
                 </div>
             </div>
-            <button id="pwaInstallBtn" class="btn-pwa-install" style="display:none" onclick="pwaInstall()">Telepítés</button>
             <div class="logo-wrapper" onclick="location.href='splash.html'">
                 <img class="sal-logo" src="SAL_Logo.svg.svg" alt="SAL">
                 <svg class="sal-hover-ring" viewBox="0 0 440 440" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -39,46 +39,31 @@
             </div>
         </header>
 
-        <div class="main-grid">
-            <div class="card">
-                <div class="card-accent-line"></div>
-                <div class="card-label">01 — Szöveg generálása</div>
-                <div class="input-row">
-                    <input type="number" id="karakterszam" value="100" min="1" max="100000" placeholder="Karakterszám...">
-                    <button class="btn-primary" onclick="displayRandomText()"><span>Generálás</span></button>
+        <div class="grafikon-page">
+            <div class="grafikon-topbar">
+                <a href="befektetes.html" class="grafikon-back-btn">← Befektetés</a>
+                <div class="grafikon-asset-info">
+                    <span class="grafikon-name" id="grafikonName"></span>
+                    <span class="grafikon-price" id="grafikonPrice"></span>
+                    <span class="grafikon-change" id="grafikonChange"></span>
                 </div>
             </div>
 
-            <div class="card">
-                <div class="card-accent-line"></div>
-                <div class="card-label">02 — Karakter kiemelés</div>
-                <div class="input-row">
-                    <input type="text" id="highlightIndex" placeholder="Pl.: 1, 5, 12, 20">
-                    <button class="btn-secondary" onclick="highlightCharacters()"><span>Kiemelés</span></button>
-                </div>
+            <div class="lw-chart-outer">
+                <div id="lwChart"></div>
+                <div class="scenario-legend" id="scenarioLegend"></div>
             </div>
 
-            <div class="output-card" id="outputCard">
-                <div class="output-header">
-                    <div class="output-title">
-                        <div class="status-dot" id="statusDot"></div>
-                        <span class="output-label">Kimenet</span>
-                    </div>
-                    <div class="output-actions">
-                        <span class="char-count" id="charCount"></span>
-                        <button class="btn-copy" id="copyButton" onclick="copyToClipboard()">Másolás</button>
-                    </div>
-                </div>
-                <div class="output-body">
-                    <div id="randomText"></div>
-                </div>
+            <div class="tv-ta-wrap">
+                <div class="tradingview-widget-container" id="tvTA"></div>
             </div>
+
+            <div class="tv-ta-wrap" id="taAnalysis"></div>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="grafikon.js"></script>
     <script src="nav.js"></script>
     <script src="effects.js"></script>
-    <span class="version-badge">v3.3</span>
 </body>
 </html>

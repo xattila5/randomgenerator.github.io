@@ -26,10 +26,11 @@
                     <a href="index.html" class="nav-link"><span class="nav-link-icon"><svg viewBox="0 0 16 16" width="15" height="15" fill="none"><rect x="1" y="2" width="14" height="2" rx="1" fill="currentColor"/><rect x="1" y="7" width="10" height="2" rx="1" fill="currentColor"/><rect x="1" y="12" width="12" height="2" rx="1" fill="currentColor"/></svg></span>Random Generator</a>
                     <a href="idojaras.html" class="nav-link active"><span class="nav-link-icon">🌤️</span>Időjárás</a>
                     <a href="hirek.html" class="nav-link"><span class="nav-link-icon">📰</span>Hírek</a>
+                    <a href="befektetes.html" class="nav-link"><span class="nav-link-icon">📈</span>Befektetés</a>
                 </div>
             </div>
             <button id="pwaInstallBtn" class="btn-pwa-install" style="display:none" onclick="pwaInstall()">Telepítés</button>
-            <div class="logo-wrapper">
+            <div class="logo-wrapper" onclick="location.href='splash.html'">
                 <img class="sal-logo" src="SAL_Logo.svg.svg" alt="SAL">
                 <svg class="sal-hover-ring" viewBox="0 0 440 440" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                     <path class="sal-arc sal-arc-1" d="M 361,79 A 200,200 0 0,1 79,361"/>
@@ -68,6 +69,7 @@
     <script src="weather-canvas.js"></script>
     <script src="idojaras.js"></script>
     <script src="nav.js"></script>
-    <span class="version-badge">v3.1</span>
+    <script src="effects.js"></script>
+    <span class="version-badge">v3.3</span>
 </body>
 </html>

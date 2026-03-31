@@ -1,8 +1,11 @@
 /* ── API kulcsok sablon ────────────────────────────────
-   Másold le config.js néven és töltsd ki a saját kulcsaiddal.
-   A config.js nincs verziókezelve (.gitignore).
+   1. Másold le config.js néven:  cp config.example.js config.js
+   2. Töltsd ki a saját kulcsaiddal (lentebb a linkek)
+   3. A config.js NEM kerül git-be (.gitignore tiltja)
+   4. Vercel-en a szerver oldali env változók érvényesek,
+      ez a fájl csak lokális fejlesztéshez kell.
 ──────────────────────────────────────────────────── */
 const SAL_CONFIG = {
-    GUARDIAN_KEY: '',   // https://open-platform.theguardian.com/access/
-    DEEPL_KEY:    '',   // https://www.deepl.com/pro-api (ingyenes: 500 000 kar./hó)
+    GUARDIAN_KEY: '',   // Ingyenes kulcs: https://open-platform.theguardian.com/access/
+    DEEPL_KEY:    '',   // Ingyenes kulcs (500 000 kar./hó): https://www.deepl.com/pro-api
 };
