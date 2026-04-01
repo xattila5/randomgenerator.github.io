@@ -6,7 +6,7 @@
  *
  * Cascade:
  *   quotes  : Yahoo query1 (3s) → Yahoo query2 (3s) → Stooq JSON
- *   history : Yahoo query1 (6s) → Yahoo query2 (6s) → 502 error
+ *   history : Yahoo query1 (6s) → Yahoo query2 (6s) → Stooq CSV → 502 error
  *   search  : Yahoo query1 only
  */
 
@@ -95,6 +95,33 @@ async function tryYahooHistory(sym, host) {
     return data;
 }
 
+/* ── Stooq CSV: historical chart fallback ───────────────── */
+async function tryStooqHistory(sym) {
+    const stooqSym = STOOQ_MAP[sym];
+    if (!stooqSym) return null;
+    const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSym)}&i=d`;
+    const r   = await fetchT(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }, 6000);
+    if (!r.ok) return null;
+    const text  = await r.text();
+    const lines = text.trim().split('\n');
+    if (lines.length < 32) return null; // need header + at least 30 rows
+    const timestamps = [], opens = [], highs = [], lows = [], closes = [], volumes = [];
+    for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(',');
+        if (parts.length < 5) continue;
+        const ts = Math.floor(new Date(parts[0]).getTime() / 1000);
+        if (isNaN(ts)) continue;
+        timestamps.push(ts);
+        opens.push(parseFloat(parts[1]));
+        highs.push(parseFloat(parts[2]));
+        lows.push(parseFloat(parts[3]));
+        closes.push(parseFloat(parts[4]));
+        volumes.push(parts[5] ? parseInt(parts[5]) : 0);
+    }
+    if (timestamps.length < 30) return null;
+    return { chart: { result: [{ timestamp: timestamps, indicators: { quote: [{ open: opens, high: highs, low: lows, close: closes, volume: volumes }] } }] } };
+}
+
 /* ── Fetch one quote: Yahoo q1 → Yahoo q2 → Stooq ──────── */
 async function fetchQuote(sym) {
     for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
@@ -104,11 +131,12 @@ async function fetchQuote(sym) {
     return null;
 }
 
-/* ── Fetch history: Yahoo q1 → Yahoo q2 ────────────────── */
+/* ── Fetch history: Yahoo q1 → Yahoo q2 → Stooq ────────── */
 async function fetchHistory(sym) {
     for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
         try { const r = await tryYahooHistory(sym, host); if (r) return r; } catch {}
     }
+    try { const r = await tryStooqHistory(sym); if (r) return r; } catch {}
     return null;
 }
 

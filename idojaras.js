@@ -186,8 +186,6 @@ function renderWeather(data, container) {
             d, dateStr, dateLabel,
             dayName:  i === 0 ? 'Ma' : DAY_NAMES[d.getDay()],
             indices,
-            noonIdx:    indices[12],
-            eveningIdx: indices[20],
             minTemp:  temps.length ? Math.round(Math.min(...temps)) : null,
             maxTemp:  temps.length ? Math.round(Math.max(...temps)) : null,
         });
@@ -224,8 +222,8 @@ function renderAll() {
             <div class="weather-day-name">${mainDay.dayName}</div>
         </div>
         <div class="weather-periods-row">
-            ${renderPeriod('Nappal · 12:00', mainDay.noonIdx,    true, 12)}
-            ${renderPeriod('Este · 20:00',   mainDay.eveningIdx, true, 20)}
+            ${renderPeriod('Nappal · átlag', computePeriodStats(mainDay.indices, 8, 19, 12), true)}
+            ${renderPeriod('Este · átlag',   computePeriodStats(mainDay.indices, 20, 7, 22, days[selectedDay + 1]?.indices), true)}
         </div>
         ${renderHourlyRow(mainDay, isToday ? currentHour : -1)}`;
 
@@ -249,26 +247,60 @@ function renderAll() {
     }
 }
 
-function renderPeriod(label, idx, large, hour = 12) {
+// wrapIndices: következő nap indices tömbje, ha a periódus átnyúlik éjfélen
+function computePeriodStats(indices, startH, endH, iconHour, wrapIndices) {
+    const valid = [];
+    if (endH >= startH) {
+        // Normál tartomány (pl. 8-19)
+        for (let h = startH; h <= endH; h++) {
+            const idx = indices[h];
+            if (idx !== undefined && idx !== -1) valid.push(idx);
+        }
+    } else {
+        // Éjfélen átnyúló (pl. 20-7): startH-23 az aktuális, 0-endH a következő napból
+        for (let h = startH; h <= 23; h++) {
+            const idx = indices[h];
+            if (idx !== undefined && idx !== -1) valid.push(idx);
+        }
+        const next = wrapIndices || [];
+        for (let h = 0; h <= endH; h++) {
+            const idx = next[h];
+            if (idx !== undefined && idx !== -1) valid.push(idx);
+        }
+    }
+    if (!valid.length) return null;
+    const temps   = valid.map(i => hourlyData.temperature_2m[i]);
+    const winds   = valid.map(i => hourlyData.windspeed_10m[i]);
+    const precips = valid.map(i => hourlyData.precipitation_probability[i] ?? 0);
+    const codes   = valid.map(i => hourlyData.weathercode[i]);
+    const cnt = {};
+    codes.forEach(c => { cnt[c] = (cnt[c] || 0) + 1; });
+    const code = parseInt(Object.entries(cnt).sort((a, b) => b[1] - a[1])[0][0]);
+    return {
+        avgTemp: Math.round(temps.reduce((a, b) => a + b, 0) / temps.length),
+        code,
+        wind:    Math.round(winds.reduce((a, b) => a + b, 0) / winds.length),
+        precip:  Math.round(Math.max(...precips)),
+        iconHour,
+    };
+}
+
+function renderPeriod(label, stats, large) {
     const cls = large ? 'weather-period weather-period--large' : 'weather-period';
-    if (idx === -1 || idx == null) {
+    if (!stats) {
         return `<div class="${cls}"><div class="weather-period-label">${label}</div><div class="weather-desc" style="margin-top:4px">Nincs adat</div></div>`;
     }
-    const code   = hourlyData.weathercode[idx];
-    const wInfo  = WEATHER_CODES[code] ?? { icon: '🌡️', desc: 'Ismeretlen' };
-    const icon   = getIcon(code, hour);
-    const temp   = Math.round(hourlyData.temperature_2m[idx]);
-    const wind   = Math.round(hourlyData.windspeed_10m[idx]);
-    const precip = hourlyData.precipitation_probability[idx] ?? 0;
+    const wInfo = WEATHER_CODES[stats.code] ?? { icon: '🌡️', desc: 'Ismeretlen' };
+    const icon  = getIcon(stats.code, stats.iconHour);
     return `
         <div class="${cls}">
             <div class="weather-period-label">${label}</div>
             <div class="weather-icon">${icon}</div>
-            <div class="weather-temp">${temp}°C</div>
+            <div class="weather-temp">${stats.avgTemp}°C</div>
             <div class="weather-desc">${wInfo.desc}</div>
             <div class="weather-meta">
-                <div class="weather-meta-item">💨 <b>${wind} km/h</b></div>
-                <div class="weather-meta-item">🌧 <b>${precip}%</b> csapadék</div>
+                <div class="weather-meta-item">💨 <b>${stats.wind} km/h</b></div>
+                <div class="weather-meta-item">🌧 <b>${stats.precip}%</b> csapadék</div>
             </div>
         </div>`;
 }
@@ -295,14 +327,12 @@ function renderHourlyRow(day, currentHour) {
 }
 
 function renderDayTile(day, dayIndex) {
-    const nIdx = day.noonIdx;
-    const eIdx = day.eveningIdx;
-    const nCode  = (nIdx !== -1) ? hourlyData.weathercode[nIdx] : 0;
-    const eCode  = (eIdx !== -1) ? hourlyData.weathercode[eIdx] : 0;
-    const nIcon  = getIcon(nCode, 12);
-    const eIcon  = getIcon(eCode, 20);
-    const nTemp  = nIdx !== -1 ? Math.round(hourlyData.temperature_2m[nIdx]) : null;
-    const eTemp  = eIdx !== -1 ? Math.round(hourlyData.temperature_2m[eIdx]) : null;
+    const dayStats = computePeriodStats(day.indices, 8, 19, 12);
+    const eveStats = computePeriodStats(day.indices, 20, 7, 22, days[dayIndex + 1]?.indices);
+    const nIcon  = dayStats ? getIcon(dayStats.code, 12) : '❓';
+    const eIcon  = eveStats ? getIcon(eveStats.code, 20) : '❓';
+    const nTemp  = dayStats?.avgTemp ?? null;
+    const eTemp  = eveStats?.avgTemp ?? null;
     return `
         <div class="weather-day-card" data-day-index="${dayIndex}" onclick="selectDay(${dayIndex})">
             <div class="weather-card-accent"></div>
